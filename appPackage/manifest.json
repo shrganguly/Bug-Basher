@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.21/MicrosoftTeams.schema.json",
   "manifestVersion": "1.21",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "id": "6db90f94-dabe-4115-be7b-b8f4837db7c8",
   "developer": {
     "name": "Microsoft OneDrive Team",
@@ -18,20 +18,55 @@
     "full": "Bug Basher - AI-Powered ADO Bug Creation"
   },
   "description": {
-    "short": "AI assistant that creates Azure DevOps bugs from conversations",
-    "full": "Bug Basher is an intelligent M365 Copilot agent that automatically creates Azure DevOps bugs by analyzing conversation context using AI. Simply ask Bug Basher to raise a bug and it will handle the rest."
+    "short": "Create Azure DevOps bugs from Teams conversations using AI",
+    "full": "Bug Basher automatically creates Azure DevOps bugs by analyzing conversation context using AI. Reply to any message with bug details and mention @Bug Basher to create a bug, or use the message action menu."
   },
   "accentColor": "#D83B01",
-  "copilotAgents": {
-    "declarativeAgents": [
-      {
-        "id": "bugBasherAgent",
-        "file": "declarativeAgent.json"
-      }
-    ]
-  },
+  "bots": [
+    {
+      "botId": "6db90f94-dabe-4115-be7b-b8f4837db7c8",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupChat"],
+          "commands": [
+            {
+              "title": "raise a bug",
+              "description": "Create an ADO bug from the message context"
+            },
+            {
+              "title": "create a bug",
+              "description": "Create an ADO bug from the message context"
+            },
+            {
+              "title": "report a bug",
+              "description": "Create an ADO bug from the message context"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "composeExtensions": [
+    {
+      "botId": "6db90f94-dabe-4115-be7b-b8f4837db7c8",
+      "commands": [
+        {
+          "id": "createBugFromMessage",
+          "context": ["message"],
+          "description": "Create an ADO bug from this message",
+          "title": "Create Bug",
+          "type": "action",
+          "fetchTask": false
+        }
+      ]
+    }
+  ],
   "permissions": [
-    "identity"
+    "identity",
+    "messageTeamMembers"
   ],
   "validDomains": [
     "teams-bug-raiser.onrender.com"
