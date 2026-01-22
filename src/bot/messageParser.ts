@@ -118,17 +118,31 @@ export class MessageParser {
   private removeBotMentions(text: string, activity: Activity): string {
     let cleanText = text;
 
-    // Remove XML-style mentions
-    cleanText = cleanText.replace(/<at>.*?<\/at>/g, '').trim();
+    // Remove XML-style mentions (multiple variations)
+    cleanText = cleanText.replace(/<at>.*?<\/at>/gi, '');
+    cleanText = cleanText.replace(/<at[^>]*>.*?<\/at>/gi, '');
+
+    // Also remove common bot mention patterns
+    cleanText = cleanText.replace(/@bug basher/gi, '');
+    cleanText = cleanText.replace(/@bug raiser/gi, '');
+    cleanText = cleanText.replace(/@speak easy/gi, '');
 
     // Remove entity mentions
     if (activity.entities) {
       for (const entity of activity.entities) {
         if (entity.type === 'mention' && entity.text) {
-          cleanText = cleanText.replace(entity.text, '').trim();
+          cleanText = cleanText.replace(entity.text, '');
         }
       }
     }
+
+    // Clean up extra whitespace
+    cleanText = cleanText.replace(/\s+/g, ' ').trim();
+
+    logger.info('After removing mentions', {
+      before: text.substring(0, 50),
+      after: cleanText.substring(0, 50)
+    });
 
     return cleanText;
   }
