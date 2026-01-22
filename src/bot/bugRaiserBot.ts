@@ -83,6 +83,21 @@ export class BugRaiserBot extends ActivityHandler {
         const cleanText = activity.text.replace(/<at>.*?<\/at>/g, '').trim();
         const commandPattern = /(raise|create|report|log)\s+a?\s*bug/i;
         messageContext = cleanText.replace(commandPattern, '').trim();
+
+        // Remove quoted message author line (Teams includes "Author Name\r\nMessage content")
+        // Split by line breaks and skip the first line if it looks like a name
+        const lines = messageContext.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length > 1) {
+          // If first line is short (< 50 chars) and looks like a name, skip it
+          const firstLine = lines[0].trim();
+          if (firstLine.length < 50 && !firstLine.includes('.') && !firstLine.includes('?')) {
+            messageContext = lines.slice(1).join('\n').trim();
+            logger.info('Removed author line from quoted message', {
+              removedLine: firstLine,
+              remainingContext: messageContext.substring(0, 100)
+            });
+          }
+        }
       }
 
       if (!messageContext) {
