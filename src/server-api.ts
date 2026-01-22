@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import { AIService } from './services/aiService';
 import { ADOService } from './services/adoService';
 import { getConfig } from './utils/config';
@@ -24,6 +26,17 @@ app.get('/', (_req: Request, res: Response) => {
     service: 'Bug Basher API',
     version: '1.0.0',
   });
+});
+
+// Serve OpenAPI specification
+app.get('/openapi.json', (_req: Request, res: Response) => {
+  const openapiPath = path.join(__dirname, '../openapi.json');
+  if (fs.existsSync(openapiPath)) {
+    const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
+    res.json(openapi);
+  } else {
+    res.status(404).json({ error: 'OpenAPI specification not found' });
+  }
 });
 
 // Main API endpoint for creating bugs

@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.21/MicrosoftTeams.schema.json",
   "manifestVersion": "1.21",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "id": "6db90f94-dabe-4115-be7b-b8f4837db7c8",
   "developer": {
     "name": "Microsoft OneDrive Team",
