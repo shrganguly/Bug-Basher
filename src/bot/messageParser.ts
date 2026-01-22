@@ -24,6 +24,7 @@ export class MessageParser {
 
     // In personal (1:1) chats, process all messages
     // In group chats/channels, require bot mention
+    // Note: Teams sometimes treats bot 1:1 chats as "groupChat", so we check for mentions
     const isPersonalChat = activity.conversation?.conversationType === 'personal';
     const isBotMentioned = this.isBotMentioned(activity, botId);
 
@@ -33,6 +34,8 @@ export class MessageParser {
       conversationType: activity.conversation?.conversationType
     });
 
+    // If bot is mentioned, always process (works in any chat type)
+    // If personal chat, process without mention
     if (!isPersonalChat && !isBotMentioned) {
       logger.info('Not personal chat and bot not mentioned, skipping');
       return result;
@@ -92,15 +95,24 @@ export class MessageParser {
         if (entity.type === 'mention') {
           const mention = entity.mentioned;
           if (mention && mention.id === botId) {
+            logger.info('Bot mentioned via entity ID match');
             return true;
           }
         }
       }
     }
 
-    // Fallback: Check if text contains @mention
+    // Fallback: Check if text contains @mention tags (any name)
     const text = activity.text || '';
-    return text.includes(`<at>${botId}</at>`) || text.includes('@bug raiser');
+    const hasAtMention = text.includes('<at>') && text.includes('</at>');
+
+    logger.info('Bot mention check', {
+      hasAtMention,
+      textPreview: text.substring(0, 100)
+    });
+
+    // If there's any @mention in the text, assume it's the bot since this is likely a bot conversation
+    return hasAtMention || text.includes('@bug raiser') || text.includes('@bug basher');
   }
 
   private removeBotMentions(text: string, activity: Activity): string {
