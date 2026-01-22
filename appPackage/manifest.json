@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.21/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.21",
+  "version": "1.0.0",
+  "id": "{{REPLACE_WITH_YOUR_BOT_APP_ID}}",
+  "developer": {
+    "name": "Internal Development Team",
+    "websiteUrl": "https://your-company.com",
+    "privacyUrl": "https://your-company.com/privacy",
+    "termsOfUseUrl": "https://your-company.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "Bug Raiser",
+    "full": "Bug Raiser - AI-Powered ADO Bug Creation"
+  },
+  "description": {
+    "short": "Automatically create Azure DevOps bugs from Teams messages",
+    "full": "Bug Raiser is an intelligent Teams bot that automatically creates Azure DevOps bugs by analyzing conversation context using AI. Simply reply to any message containing bug details with '@bug raiser raise a bug' and the bot will handle the rest."
+  },
+  "accentColor": "#D83B01",
+  "bots": [
+    {
+      "botId": "{{REPLACE_WITH_YOUR_BOT_APP_ID}}",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupChat"],
+          "commands": [
+            {
+              "title": "raise a bug",
+              "description": "Create an ADO bug from the message context"
+            },
+            {
+              "title": "create a bug",
+              "description": "Create an ADO bug from the message context"
+            },
+            {
+              "title": "report a bug",
+              "description": "Create an ADO bug from the message context"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "{{REPLACE_WITH_YOUR_DOMAIN}}"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "teams-bug-raiser",
+  "version": "1.0.0",
+  "description": "Teams bot that automatically creates Azure DevOps bugs using AI",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "teams",
+    "bot",
+    "azure-devops",
+    "bug-tracking",
+    "ai"
+  ],
+  "author": "Internal Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@azure/openai": "^2.0.0",
+    "axios": "^1.6.0",
+    "botbuilder": "^4.23.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  }
+}
