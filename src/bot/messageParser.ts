@@ -21,10 +21,12 @@ export class MessageParser {
 
     const text = activity.text.trim();
 
-    // Check if the bot is mentioned
+    // In personal (1:1) chats, process all messages
+    // In group chats/channels, require bot mention
+    const isPersonalChat = activity.conversation?.conversationType === 'personal';
     const isBotMentioned = this.isBotMentioned(activity, botId);
 
-    if (!isBotMentioned) {
+    if (!isPersonalChat && !isBotMentioned) {
       return result;
     }
 
