@@ -1,47 +1,21 @@
 {
   "schema_version": "v2.4",
-  "name_for_human": "Bug Basher API",
+  "name_for_human": "Bug Creator",
   "namespace": "BugBasher",
-  "description_for_human": "Creates Azure DevOps bugs from natural language descriptions",
-  "description_for_model": "Plugin for creating structured bugs in Azure DevOps. Use when users want to raise, create, report, or log bugs. The plugin analyzes bug descriptions using AI and creates properly formatted work items in Azure DevOps.",
+  "description_for_human": "Creates Azure DevOps bugs",
+  "description_for_model": "Creates structured bugs in Azure DevOps from bug descriptions.",
   "functions": [
     {
       "name": "createBug",
-      "description": "Analyzes a bug description using AI and creates a structured bug in Azure DevOps",
+      "description": "Creates a bug in Azure DevOps",
       "parameters": {
         "type": "object",
         "required": ["description"],
         "properties": {
           "description": {
             "type": "string",
-            "description": "The bug description or issue details provided by the user. Can include what went wrong, expected behavior, actual behavior, and reproduction steps."
-          },
-          "context": {
-            "type": "string",
-            "description": "Optional additional context or conversation history related to the bug"
+            "description": "Bug description with issue details"
           }
-        }
-      },
-      "returns": {
-        "type": "object",
-        "description": "Bug creation result with URL and details"
-      },
-      "states": {
-        "reasoning": {
-          "description": "Creates a bug in Azure DevOps based on the user's description",
-          "instructions": [
-            "Use this function when the user asks to raise, create, report, or log a bug",
-            "Extract the bug description from the user's message",
-            "Pass any additional context that might help with bug analysis"
-          ]
-        },
-        "responding": {
-          "description": "Presents the created bug to the user",
-          "instructions": [
-            "Show the bug title and severity",
-            "Provide the Azure DevOps URL for the user to review",
-            "Confirm the bug was created successfully"
-          ]
         }
       }
     }
@@ -54,7 +28,7 @@
       },
       "run_for_functions": ["createBug"],
       "spec": {
-        "url": "https://teams-bug-raiser.onrender.com/openapi.json"
+        "api_description": "{\"openapi\":\"3.0.0\",\"info\":{\"title\":\"Bug Basher API\",\"description\":\"API for creating Azure DevOps bugs\",\"version\":\"1.0.0\"},\"servers\":[{\"url\":\"https://teams-bug-raiser.onrender.com\"}],\"paths\":{\"/api/create-bug\":{\"post\":{\"operationId\":\"createBug\",\"summary\":\"Create a bug\",\"description\":\"Creates a structured bug in Azure DevOps\",\"requestBody\":{\"required\":true,\"content\":{\"application/json\":{\"schema\":{\"type\":\"object\",\"required\":[\"description\"],\"properties\":{\"description\":{\"type\":\"string\",\"description\":\"Bug description\"}}}}}},\"responses\":{\"200\":{\"description\":\"Bug created\",\"content\":{\"application/json\":{\"schema\":{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"bugUrl\":{\"type\":\"string\"}}}}}}}}}}}"
       }
     }
   ]

@@ -19,9 +19,17 @@ const config = getConfig();
 const aiService = new AIService(config.ai);
 const adoService = new ADOService(config.ado);
 
-// Health check endpoint
+// Health check endpoints
 app.get('/', (_req: Request, res: Response) => {
   res.json({
+    status: 'healthy',
+    service: 'Bug Basher API',
+    version: '1.0.0',
+  });
+});
+
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({
     status: 'healthy',
     service: 'Bug Basher API',
     version: '1.0.0',
