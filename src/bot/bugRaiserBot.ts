@@ -30,6 +30,15 @@ export class BugRaiserBot extends ActivityHandler {
       await this.handleMemberAdded(context);
       await next();
     });
+
+  }
+
+  // Override handleTeamsMessagingExtensionSubmitAction to handle message actions
+  protected async handleTeamsMessagingExtensionSubmitAction(
+    context: TurnContext,
+    _action: any
+  ): Promise<any> {
+    return await this.handleMessageAction(context);
   }
 
   private async handleMessage(context: TurnContext): Promise<void> {
@@ -181,5 +190,94 @@ I help you create Azure DevOps bugs automatically by analyzing conversation cont
 - \`@bug raiser report a bug\`
 
 Let me know if you need any help!`;
+  }
+
+  private async handleMessageAction(context: TurnContext): Promise<any> {
+    try {
+      logger.info('Received message action');
+
+      // Extract the message text from the action
+      const messageText = context.activity.value?.messagePayload?.body?.content || '';
+
+      if (!messageText) {
+        return {
+          status: 200,
+          body: {
+            composeExtension: {
+              type: 'message',
+              text: '⚠️ Could not extract message content. Please try again.',
+            },
+          },
+        };
+      }
+
+      logger.info('Processing message action', { messageLength: messageText.length });
+
+      // Analyze with AI
+      const bugDetails = await this.aiService.analyzeBugContext(messageText);
+
+      // Create bug in ADO
+      const bugUrl = await this.adoService.createBug(bugDetails);
+
+      // Return success response
+      return {
+        status: 200,
+        body: {
+          composeExtension: {
+            type: 'result',
+            attachmentLayout: 'list',
+            attachments: [
+              {
+                contentType: 'application/vnd.microsoft.card.adaptive',
+                content: {
+                  type: 'AdaptiveCard',
+                  version: '1.4',
+                  body: [
+                    {
+                      type: 'TextBlock',
+                      text: '✅ Bug Created Successfully!',
+                      weight: 'bolder',
+                      size: 'large',
+                      color: 'good',
+                    },
+                    {
+                      type: 'TextBlock',
+                      text: bugDetails.title,
+                      weight: 'bolder',
+                      wrap: true,
+                    },
+                    {
+                      type: 'TextBlock',
+                      text: bugDetails.description,
+                      wrap: true,
+                      spacing: 'small',
+                    },
+                  ],
+                  actions: [
+                    {
+                      type: 'Action.OpenUrl',
+                      title: 'View in Azure DevOps',
+                      url: bugUrl,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      };
+    } catch (error) {
+      logger.error('Error handling message action', error);
+
+      return {
+        status: 200,
+        body: {
+          composeExtension: {
+            type: 'message',
+            text: `❌ Failed to create bug: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        },
+      };
+    }
   }
 }
