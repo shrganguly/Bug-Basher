@@ -36,7 +36,8 @@ export class ADOService {
 
       const workItem = response.data;
       const bugId = workItem.id;
-      const bugUrl = `https://dev.azure.com/${this.config.organization}/${this.config.project}/_workitems/edit/${bugId}`;
+      const encodedProject = encodeURIComponent(this.config.project);
+      const bugUrl = `https://dev.azure.com/${this.config.organization}/${encodedProject}/_workitems/edit/${bugId}`;
 
       logger.info('Bug created successfully', { bugId, bugUrl });
       return bugUrl;
