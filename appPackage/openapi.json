@@ -1,0 +1,85 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Bug Basher API",
+    "description": "API for creating Azure DevOps bugs from natural language descriptions",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://teams-bug-raiser.onrender.com",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/api/create-bug": {
+      "post": {
+        "operationId": "createBug",
+        "summary": "Create a bug in Azure DevOps",
+        "description": "Analyzes the provided description using AI and creates a structured bug in Azure DevOps",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["description"],
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "description": "The bug description or issue details from the user"
+                  },
+                  "context": {
+                    "type": "string",
+                    "description": "Optional additional context or conversation history"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bug created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "bugUrl": {
+                      "type": "string",
+                      "description": "URL to the created bug in Azure DevOps"
+                    },
+                    "bugDetails": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing required fields"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    }
+  }
+}
