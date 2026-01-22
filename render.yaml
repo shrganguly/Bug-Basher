@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: teams-bug-raiser
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MICROSOFT_APP_ID
+        sync: false
+      - key: MICROSOFT_APP_PASSWORD
+        sync: false
+      - key: MICROSOFT_APP_TYPE
+        value: MultiTenant
+      - key: MICROSOFT_APP_TENANT_ID
+        sync: false
+      - key: AI_PROVIDER
+        value: claude
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-20250514
+      - key: ADO_ORGANIZATION
+        sync: false
+      - key: ADO_PROJECT
+        sync: false
+      - key: ADO_PAT
+        sync: false
+      - key: ADO_AREA_PATH
+        sync: false
+      - key: ADO_ITERATION_PATH
+        sync: false
+      - key: BASE_URL
+        value: https://teams-bug-raiser.onrender.com
