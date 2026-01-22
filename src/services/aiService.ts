@@ -1,20 +1,39 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { AzureOpenAI } from 'openai';
 import { AIConfig, BugDetails } from '../types';
 import { logger } from '../utils/logger';
 
 export class AIService {
   private claudeClient?: Anthropic;
+  private azureOpenAIClient?: AzureOpenAI;
+  private provider: 'claude' | 'azure-openai';
   private model: string;
 
   constructor(config: AIConfig) {
+    this.provider = config.provider;
+
     if (config.provider === 'claude') {
       this.claudeClient = new Anthropic({
         apiKey: config.apiKey,
       });
       this.model = config.model || 'claude-sonnet-4-20250514';
+    } else if (config.provider === 'azure-openai') {
+      if (!config.endpoint || !config.deploymentName) {
+        throw new Error('Azure OpenAI requires endpoint and deploymentName');
+      }
+
+      this.azureOpenAIClient = new AzureOpenAI({
+        apiKey: config.apiKey,
+        endpoint: config.endpoint,
+        apiVersion: config.apiVersion || '2024-08-01-preview',
+        deployment: config.deploymentName,
+      });
+      this.model = config.deploymentName;
     } else {
-      throw new Error('Only Claude provider is currently supported');
+      throw new Error(`Unsupported AI provider: ${config.provider}`);
     }
+
+    logger.info(`AI Service initialized with provider: ${config.provider}`);
   }
 
   public async analyzeBugContext(
@@ -22,10 +41,15 @@ export class AIService {
     conversationContext?: string
   ): Promise<BugDetails> {
     try {
-      logger.info('Analyzing bug context with AI', { messageLength: messageText.length });
+      logger.info('Analyzing bug context with AI', {
+        provider: this.provider,
+        messageLength: messageText.length
+      });
 
-      if (this.claudeClient) {
+      if (this.provider === 'claude' && this.claudeClient) {
         return await this.analyzeWithClaude(messageText, conversationContext);
+      } else if (this.provider === 'azure-openai' && this.azureOpenAIClient) {
+        return await this.analyzeWithAzureOpenAI(messageText, conversationContext);
       }
 
       throw new Error('No AI client configured');
@@ -68,6 +92,36 @@ export class AIService {
     }
 
     const parsedResult = JSON.parse(jsonMatch[0]);
+    const bugDetails = this.validateAndNormalizeBugDetails(parsedResult);
+
+    logger.info('AI analysis complete', { title: bugDetails.title });
+    return bugDetails;
+  }
+
+  private async analyzeWithAzureOpenAI(
+    messageText: string,
+    conversationContext?: string
+  ): Promise<BugDetails> {
+    const systemPrompt = this.buildSystemPrompt();
+    const userPrompt = this.buildUserPrompt(messageText, conversationContext);
+
+    const response = await this.azureOpenAIClient!.chat.completions.create({
+      model: this.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response from Azure OpenAI');
+    }
+
+    const parsedResult = JSON.parse(content);
     const bugDetails = this.validateAndNormalizeBugDetails(parsedResult);
 
     logger.info('AI analysis complete', { title: bugDetails.title });

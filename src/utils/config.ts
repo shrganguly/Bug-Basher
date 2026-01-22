@@ -22,9 +22,9 @@ export function getConfig(): AppConfig {
       tenantId: getEnvVar('MICROSOFT_APP_TENANT_ID', false),
     },
     ai: {
-      provider: (getEnvVar('AI_PROVIDER', false) || 'claude') as 'claude' | 'azure-openai',
-      apiKey: getEnvVar('ANTHROPIC_API_KEY', false) || getEnvVar('AZURE_OPENAI_API_KEY', false) || '',
-      model: getEnvVar('CLAUDE_MODEL', false) || 'claude-sonnet-4-20250514',
+      provider: (getEnvVar('AI_PROVIDER', false) || 'azure-openai') as 'claude' | 'azure-openai',
+      apiKey: getEnvVar('AZURE_OPENAI_API_KEY', false) || getEnvVar('ANTHROPIC_API_KEY', false) || '',
+      model: getEnvVar('CLAUDE_MODEL', false),
       endpoint: getEnvVar('AZURE_OPENAI_ENDPOINT', false),
       deploymentName: getEnvVar('AZURE_OPENAI_DEPLOYMENT_NAME', false),
       apiVersion: getEnvVar('AZURE_OPENAI_API_VERSION', false) || '2024-08-01-preview',
@@ -42,18 +42,21 @@ export function getConfig(): AppConfig {
 export function validateConfig(config: AppConfig): void {
   const errors: string[] = [];
 
-  if (!config.bot.appId) errors.push('Bot App ID is required');
-  if (!config.bot.appPassword) errors.push('Bot App Password is required');
-  if (!config.ai.apiKey) errors.push('AI API Key is required (ANTHROPIC_API_KEY or AZURE_OPENAI_API_KEY)');
+  if (!config.bot.appId) errors.push('Bot App ID is required (MICROSOFT_APP_ID)');
+  if (!config.bot.appPassword) errors.push('Bot App Password is required (MICROSOFT_APP_PASSWORD)');
 
-  if (config.ai.provider === 'azure-openai') {
-    if (!config.ai.endpoint) errors.push('Azure OpenAI Endpoint is required');
-    if (!config.ai.deploymentName) errors.push('Azure OpenAI Deployment Name is required');
+  if (!config.ai.apiKey) {
+    errors.push('AI API Key is required (AZURE_OPENAI_API_KEY or ANTHROPIC_API_KEY)');
   }
 
-  if (!config.ado.organization) errors.push('ADO Organization is required');
-  if (!config.ado.project) errors.push('ADO Project is required');
-  if (!config.ado.pat) errors.push('ADO PAT is required');
+  if (config.ai.provider === 'azure-openai') {
+    if (!config.ai.endpoint) errors.push('Azure OpenAI Endpoint is required (AZURE_OPENAI_ENDPOINT)');
+    if (!config.ai.deploymentName) errors.push('Azure OpenAI Deployment Name is required (AZURE_OPENAI_DEPLOYMENT_NAME)');
+  }
+
+  if (!config.ado.organization) errors.push('ADO Organization is required (ADO_ORGANIZATION)');
+  if (!config.ado.project) errors.push('ADO Project is required (ADO_PROJECT)');
+  if (!config.ado.pat) errors.push('ADO PAT is required (ADO_PAT)');
 
   if (errors.length > 0) {
     throw new Error(`Configuration validation failed:\n${errors.join('\n')}`);
