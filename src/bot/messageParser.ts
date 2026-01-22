@@ -16,6 +16,7 @@ export class MessageParser {
     };
 
     if (!activity.text) {
+      logger.info('No text in activity');
       return result;
     }
 
@@ -26,15 +27,29 @@ export class MessageParser {
     const isPersonalChat = activity.conversation?.conversationType === 'personal';
     const isBotMentioned = this.isBotMentioned(activity, botId);
 
+    logger.info('Chat detection', {
+      isPersonalChat,
+      isBotMentioned,
+      conversationType: activity.conversation?.conversationType
+    });
+
     if (!isPersonalChat && !isBotMentioned) {
+      logger.info('Not personal chat and bot not mentioned, skipping');
       return result;
     }
 
     // Remove bot mention from text for cleaner parsing
     const cleanText = this.removeBotMentions(text, activity);
 
+    logger.info('Cleaned text for parsing', {
+      originalText: text.substring(0, 100),
+      cleanText: cleanText.substring(0, 100)
+    });
+
     // Check for bug-related commands
     const commandType = this.detectBugCommand(cleanText);
+
+    logger.info('Command detection result', { commandType });
 
     if (commandType) {
       result.isCommand = true;

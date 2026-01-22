@@ -52,10 +52,17 @@ export class BugRaiserBot extends ActivityHandler {
       });
 
       // Parse the message for commands
+      logger.info('Parsing command with botId', { botId: this.botId });
       const parseResult = this.messageParser.parseCommand(activity, this.botId);
 
+      logger.info('Parse result', {
+        isCommand: parseResult.isCommand,
+        commandType: parseResult.commandType,
+        conversationType: activity.conversation?.conversationType
+      });
+
       if (!parseResult.isCommand) {
-        logger.debug('Not a command, ignoring');
+        logger.info('Not a command, ignoring');
         return;
       }
 
