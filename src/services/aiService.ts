@@ -112,7 +112,7 @@ export class AIService {
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.3,
-      max_tokens: 1000,
+      max_completion_tokens: 1000,
       response_format: { type: 'json_object' },
     });
 
