@@ -1,8 +1,9 @@
 import { ActivityHandler, TurnContext, MessageFactory } from 'botbuilder';
-import { AppConfig } from '../types';
+import { AppConfig, ADOConfig } from '../types';
 import { MessageParser } from './messageParser';
 import { AIService } from '../services/aiService';
 import { ADOService } from '../services/adoService';
+import { AdaptiveCardBuilder } from './adaptiveCardBuilder';
 import { logger } from '../utils/logger';
 
 export class BugRaiserBot extends ActivityHandler {
@@ -10,18 +11,25 @@ export class BugRaiserBot extends ActivityHandler {
   private aiService: AIService;
   private adoService: ADOService;
   private botId: string;
+  private adoConfig: ADOConfig;
 
   constructor(config: AppConfig) {
     super();
 
     this.botId = config.bot.appId;
+    this.adoConfig = config.ado;
     this.messageParser = new MessageParser();
     this.aiService = new AIService(config.ai);
     this.adoService = new ADOService(config.ado);
 
     // Handle messages
     this.onMessage(async (context, next) => {
-      await this.handleMessage(context);
+      // Check if this is a card submission
+      if (context.activity.value && context.activity.value.action) {
+        await this.handleCardSubmission(context);
+      } else {
+        await this.handleMessage(context);
+      }
       await next();
     });
 
@@ -119,18 +127,16 @@ export class BugRaiserBot extends ActivityHandler {
 
       logger.info('Bug details extracted', { title: bugDetails.title });
 
-      // Step 2: Create bug in ADO
-      const bugUrl = await this.adoService.createBug(bugDetails);
-
-      // Step 3: Send confirmation
-      const confirmationMessage = this.buildConfirmationMessage(
-        bugDetails.title,
-        bugUrl
+      // Step 2: Show preview card for user to review and edit
+      const previewCard = AdaptiveCardBuilder.buildBugPreviewCard(
+        bugDetails,
+        this.adoConfig,
+        messageContext
       );
 
-      await context.sendActivity(MessageFactory.text(confirmationMessage));
+      await context.sendActivity(MessageFactory.attachment(previewCard));
 
-      logger.info('Bug created and notification sent', { bugUrl });
+      logger.info('Bug preview card sent to user');
     } catch (error) {
       logger.error('Error handling message', error);
 
@@ -140,6 +146,73 @@ export class BugRaiserBot extends ActivityHandler {
       await context.sendActivity(
         MessageFactory.text(
           `❌ Failed to create bug: ${errorMessage}\n\nPlease check the configuration and try again.`
+        )
+      );
+    }
+  }
+
+  private async handleCardSubmission(context: TurnContext): Promise<void> {
+    try {
+      const submittedData = context.activity.value;
+
+      logger.info('Card submission received', {
+        action: submittedData.action,
+      });
+
+      // Handle cancel action
+      if (submittedData.action === 'cancel') {
+        await context.sendActivity(
+          MessageFactory.text('❌ Bug creation cancelled.')
+        );
+        return;
+      }
+
+      // Handle create bug action
+      if (submittedData.action === 'createBug') {
+        // Show typing indicator
+        await context.sendActivity({ type: 'typing' });
+
+        // Extract submitted values
+        const bugDetails = {
+          title: submittedData.title,
+          description: submittedData.description,
+          reproSteps: submittedData.reproSteps,
+          severity: submittedData.severity as 'Critical' | 'High' | 'Medium' | 'Low',
+          tags: submittedData.tags
+            ? submittedData.tags.split(',').map((t: string) => t.trim())
+            : [],
+          areaPath: submittedData.areaPath || this.adoConfig.areaPath,
+          iterationPath: submittedData.iterationPath || this.adoConfig.iterationPath,
+        };
+
+        logger.info('Creating bug with submitted data', {
+          title: bugDetails.title,
+          severity: bugDetails.severity,
+        });
+
+        // Create bug in ADO
+        const { bugUrl, bugId } = await this.adoService.createBug(bugDetails);
+
+        // Send confirmation card
+        const confirmationCard = AdaptiveCardBuilder.buildConfirmationCard(
+          bugDetails.title,
+          bugUrl,
+          bugId
+        );
+
+        await context.sendActivity(MessageFactory.attachment(confirmationCard));
+
+        logger.info('Bug created and confirmation sent', { bugId, bugUrl });
+      }
+    } catch (error) {
+      logger.error('Error handling card submission', error);
+
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
+
+      await context.sendActivity(
+        MessageFactory.text(
+          `❌ Failed to create bug: ${errorMessage}\n\nPlease check the values and try again.`
         )
       );
     }
@@ -178,10 +251,6 @@ export class BugRaiserBot extends ActivityHandler {
       logger.error('Error extracting replied message context', error);
       return '';
     }
-  }
-
-  private buildConfirmationMessage(bugTitle: string, bugUrl: string): string {
-    return `✅ **Bug Created Successfully!**\n\n**Title:** ${bugTitle}\n\n**View Bug:** [Click here to open in Azure DevOps](${bugUrl})\n\nYou can now review and update the bug details in ADO.`;
   }
 
   private async handleMemberAdded(context: TurnContext): Promise<void> {
@@ -239,7 +308,7 @@ Let me know if you need any help!`;
       const bugDetails = await this.aiService.analyzeBugContext(messageText);
 
       // Create bug in ADO
-      const bugUrl = await this.adoService.createBug(bugDetails);
+      const { bugUrl } = await this.adoService.createBug(bugDetails);
 
       // Return success response
       return {

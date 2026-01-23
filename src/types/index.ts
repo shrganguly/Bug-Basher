@@ -5,6 +5,10 @@ export interface BugDetails {
   expectedBehavior?: string;
   actualBehavior?: string;
   severity: 'Critical' | 'High' | 'Medium' | 'Low';
+  tags?: string[];
+  originalMessage?: string;
+  areaPath?: string;
+  iterationPath?: string;
 }
 
 export interface ADOConfig {

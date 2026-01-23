@@ -132,11 +132,16 @@ export class AIService {
     return `You are a bug analysis assistant. Analyze user messages and extract bug information.
 
 Your task:
-1. Extract a concise, actionable bug title (max 100 characters)
-2. Write a detailed description explaining the issue
+1. Create a concise, professional bug title (max 80 characters) - SUMMARIZE, don't copy verbatim. Use technical, actionable language.
+2. Write a detailed description - Start with "Original message: " followed by the user's message in quotes, then add your analysis
 3. Identify reproduction steps if mentioned
 4. Determine expected vs actual behavior
 5. Assess severity level: Critical, High, Medium, or Low
+6. Suggest 3-5 relevant tags (keywords like "login", "mobile", "UI", "performance", etc.)
+
+Title examples:
+- Good: "Login button unresponsive on mobile Safari"
+- Bad: "Login button is not working" (too generic, not summarized)
 
 Severity guidelines:
 - Critical: System crash, data loss, security vulnerability
@@ -146,12 +151,13 @@ Severity guidelines:
 
 Return ONLY valid JSON in this exact format (no markdown, no extra text):
 {
-  "title": "Bug title here",
+  "title": "Concise summarized title",
   "description": "Detailed description",
   "reproSteps": "1. Step one\\n2. Step two\\n3. Step three",
   "expectedBehavior": "What should happen",
   "actualBehavior": "What actually happens",
-  "severity": "High"
+  "severity": "High",
+  "tags": ["tag1", "tag2", "tag3"]
 }
 
 If information is not explicitly provided, make reasonable inferences from context.`;
@@ -185,6 +191,7 @@ If information is not explicitly provided, make reasonable inferences from conte
       expectedBehavior: parsed.expectedBehavior,
       actualBehavior: parsed.actualBehavior,
       severity,
+      tags: parsed.tags || [],
     };
   }
 

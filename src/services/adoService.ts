@@ -20,7 +20,7 @@ export class ADOService {
     });
   }
 
-  public async createBug(bugDetails: BugDetails): Promise<string> {
+  public async createBug(bugDetails: BugDetails): Promise<{ bugUrl: string; bugId: number }> {
     try {
       logger.info('Creating bug in Azure DevOps', { title: bugDetails.title });
 
@@ -40,7 +40,7 @@ export class ADOService {
       const bugUrl = `https://dev.azure.com/${this.config.organization}/${encodedProject}/_workitems/edit/${bugId}`;
 
       logger.info('Bug created successfully', { bugId, bugUrl });
-      return bugUrl;
+      return { bugUrl, bugId };
     } catch (error) {
       if (axios.isAxiosError(error)) {
         logger.error('ADO API error', {
@@ -73,27 +73,33 @@ export class ADOService {
         path: '/fields/Microsoft.VSTS.Common.Severity',
         value: this.mapSeverityToADO(bugDetails.severity),
       },
-      {
-        op: 'add',
-        path: '/fields/System.Tags',
-        value: 'Teams Bot; Auto-Created',
-      },
     ];
 
-    // Add optional fields if configured
-    if (this.config.areaPath) {
+    // Add tags (combine user tags with auto-created tag)
+    const userTags = bugDetails.tags?.filter(t => t).join('; ') || '';
+    const allTags = userTags ? `${userTags}; Teams Bot; Auto-Created` : 'Teams Bot; Auto-Created';
+    patches.push({
+      op: 'add',
+      path: '/fields/System.Tags',
+      value: allTags,
+    });
+
+    // Add optional fields from bugDetails or config
+    const areaPath = bugDetails.areaPath || this.config.areaPath;
+    if (areaPath) {
       patches.push({
         op: 'add',
         path: '/fields/System.AreaPath',
-        value: this.config.areaPath,
+        value: areaPath,
       });
     }
 
-    if (this.config.iterationPath) {
+    const iterationPath = bugDetails.iterationPath || this.config.iterationPath;
+    if (iterationPath) {
       patches.push({
         op: 'add',
         path: '/fields/System.IterationPath',
-        value: this.config.iterationPath,
+        value: iterationPath,
       });
     }
 
