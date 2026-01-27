@@ -149,7 +149,13 @@ export class MessageParser {
 
   private detectBugCommand(
     text: string
-  ): 'raise_bug' | 'create_bug' | 'report_bug' | undefined {
+  ): 'raise_bug' | 'create_bug' | 'report_bug' | 'setup' | undefined {
+    // Check for setup command first
+    if (/\b(setup|configure|config)\b/i.test(text)) {
+      return 'setup';
+    }
+
+    // Check for bug commands
     for (const pattern of this.bugCommandPatterns) {
       if (pattern.test(text)) {
         const match = text.match(pattern);

@@ -4,6 +4,9 @@ import {
   CloudAdapter,
   ConfigurationServiceClientCredentialFactory,
   createBotFrameworkAuthenticationFromConfiguration,
+  MemoryStorage,
+  ConversationState,
+  UserState,
 } from 'botbuilder';
 import { getConfig, validateConfig } from './utils/config';
 import { logger } from './utils/logger';
@@ -47,8 +50,21 @@ adapter.onTurnError = async (context, error) => {
   await context.sendActivity('Sorry, something went wrong. Please try again later.');
 };
 
+// Create storage and state management
+// Note: For production, consider using BlobsStorage or CosmosDbPartitionedStorage
+const storage = new MemoryStorage();
+const conversationState = new ConversationState(storage);
+const userState = new UserState(storage);
+
+// Add middleware to save state after each turn
+adapter.use(async (context, next) => {
+  await next();
+  await conversationState.saveChanges(context);
+  await userState.saveChanges(context);
+});
+
 // Create bot instance
-const bot = new BugRaiserBot(config);
+const bot = new BugRaiserBot(config, conversationState, userState);
 
 // Routes
 app.get('/', (_req: Request, res: Response) => {

@@ -20,7 +20,7 @@ export class ADOService {
     });
   }
 
-  public async createBug(bugDetails: BugDetails): Promise<{ bugUrl: string; bugId: number }> {
+  public async createBug(bugDetails: BugDetails, userPat?: string): Promise<{ bugUrl: string; bugId: number }> {
     try {
       logger.info('Creating bug in Azure DevOps', { title: bugDetails.title });
 
@@ -29,7 +29,10 @@ export class ADOService {
       // Build JSON Patch document for creating work item
       const patchDocument = this.buildPatchDocument(bugDetails);
 
-      const response = await this.client.post<ADOWorkItem>(
+      // Use user's PAT if provided, otherwise use default client
+      const client = userPat ? this.createClientWithPAT(userPat) : this.client;
+
+      const response = await client.post<ADOWorkItem>(
         workItemUrl,
         patchDocument
       );
@@ -212,6 +215,17 @@ export class ADOService {
     }
 
     return paths;
+  }
+
+  private createClientWithPAT(pat: string): AxiosInstance {
+    const auth = Buffer.from(`:${pat}`).toString('base64');
+    return axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json-patch+json',
+      },
+    });
   }
 
   private escapeHtml(text: string): string {

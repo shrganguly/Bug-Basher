@@ -47,7 +47,7 @@ export interface AppConfig {
 
 export interface CommandParseResult {
   isCommand: boolean;
-  commandType?: 'raise_bug' | 'create_bug' | 'report_bug';
+  commandType?: 'raise_bug' | 'create_bug' | 'report_bug' | 'setup';
   repliedMessageId?: string;
   repliedMessageText?: string;
 }
@@ -61,4 +61,18 @@ export interface ADOWorkItem {
     'System.State': string;
     [key: string]: any;
   };
+}
+
+export interface ConversationConfig {
+  areaPath?: string;
+  iterationPath?: string;
+  isConfigured: boolean;
+}
+
+export interface UserConfig {
+  pat?: string;
+  areaPath?: string;
+  iterationPath?: string;
+  isConfigured: boolean;
+  configuredAt?: Date;
 }

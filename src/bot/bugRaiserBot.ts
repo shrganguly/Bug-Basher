@@ -1,5 +1,5 @@
-import { ActivityHandler, TurnContext, MessageFactory } from 'botbuilder';
-import { AppConfig, ADOConfig } from '../types';
+import { ActivityHandler, TurnContext, MessageFactory, StatePropertyAccessor, ConversationState, UserState } from 'botbuilder';
+import { AppConfig, ADOConfig, UserConfig } from '../types';
 import { MessageParser } from './messageParser';
 import { AIService } from '../services/aiService';
 import { ADOService } from '../services/adoService';
@@ -12,12 +12,19 @@ export class BugRaiserBot extends ActivityHandler {
   private adoService: ADOService;
   private botId: string;
   private adoConfig: ADOConfig;
+  private userConfigAccessor: StatePropertyAccessor<UserConfig>;
+  private userState: UserState;
 
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, _conversationState: ConversationState, userState: UserState) {
     super();
 
     this.botId = config.bot.appId;
     this.adoConfig = config.ado;
+    this.userState = userState;
+
+    // Create state accessor for user configuration
+    this.userConfigAccessor = userState.createProperty<UserConfig>('userConfig');
+
     this.messageParser = new MessageParser();
     this.aiService = new AIService(config.ai);
     this.adoService = new ADOService(config.ado);
@@ -76,6 +83,12 @@ export class BugRaiserBot extends ActivityHandler {
 
       logger.info('Command detected', { commandType: parseResult.commandType });
 
+      // Handle setup command
+      if (parseResult.commandType === 'setup') {
+        await this.handleSetupCommand(context);
+        return;
+      }
+
       // Extract context from replied message
       let messageContext = '';
 
@@ -117,6 +130,18 @@ export class BugRaiserBot extends ActivityHandler {
         return;
       }
 
+      // Check if user is configured
+      const userConfig = await this.userConfigAccessor.get(context, { isConfigured: false });
+      if (!userConfig.isConfigured) {
+        await context.sendActivity(
+          MessageFactory.text(
+            '⚠️ Please set up your Bug Basher configuration first.\n\n' +
+            'Type `@bug basher setup` to configure your Personal Access Token and default paths.'
+          )
+        );
+        return;
+      }
+
       logger.info('Processing bug report', { contextLength: messageContext.length });
 
       // Show typing indicator
@@ -127,8 +152,11 @@ export class BugRaiserBot extends ActivityHandler {
 
       logger.info('Bug details extracted', { title: bugDetails.title });
 
-      // Step 2: Show preview card for user to review and edit
-      // Using text inputs for area/iteration to avoid card size limits
+      // Step 2: Use user's configured paths as defaults
+      bugDetails.areaPath = bugDetails.areaPath || userConfig.areaPath || this.adoConfig.areaPath;
+      bugDetails.iterationPath = bugDetails.iterationPath || userConfig.iterationPath || this.adoConfig.iterationPath;
+
+      // Step 3: Show preview card for user to review and edit
       const previewCard = AdaptiveCardBuilder.buildBugPreviewCard(
         bugDetails,
         this.adoConfig
@@ -162,7 +190,32 @@ export class BugRaiserBot extends ActivityHandler {
       // Handle cancel action
       if (submittedData.action === 'cancel') {
         await context.sendActivity(
-          MessageFactory.text('❌ Bug creation cancelled.')
+          MessageFactory.text('❌ Cancelled.')
+        );
+        return;
+      }
+
+      // Handle save config action
+      if (submittedData.action === 'saveConfig') {
+        const newConfig: UserConfig = {
+          pat: submittedData.pat,
+          areaPath: submittedData.areaPath,
+          iterationPath: submittedData.iterationPath,
+          isConfigured: true,
+          configuredAt: new Date(),
+        };
+
+        await this.userConfigAccessor.set(context, newConfig);
+        await this.userState.saveChanges(context);
+
+        await context.sendActivity(
+          MessageFactory.text(
+            `✅ Configuration saved successfully!\n\n` +
+            `Your settings:\n` +
+            `- Area Path: ${newConfig.areaPath}\n` +
+            `- Iteration Path: ${newConfig.iterationPath}\n\n` +
+            `You can now use "@bug basher raise a bug" to create bugs!`
+          )
         );
         return;
       }
@@ -171,6 +224,9 @@ export class BugRaiserBot extends ActivityHandler {
       if (submittedData.action === 'createBug') {
         // Show typing indicator
         await context.sendActivity({ type: 'typing' });
+
+        // Get user's configuration
+        const userConfig = await this.userConfigAccessor.get(context, { isConfigured: false });
 
         // Extract submitted values
         const bugDetails = {
@@ -190,8 +246,8 @@ export class BugRaiserBot extends ActivityHandler {
           severity: bugDetails.severity,
         });
 
-        // Create bug in ADO
-        const { bugUrl, bugId } = await this.adoService.createBug(bugDetails);
+        // Create bug in ADO using user's PAT
+        const { bugUrl, bugId } = await this.adoService.createBug(bugDetails, userConfig.pat);
 
         // Send confirmation card
         const confirmationCard = AdaptiveCardBuilder.buildConfirmationCard(
@@ -250,6 +306,29 @@ export class BugRaiserBot extends ActivityHandler {
     } catch (error) {
       logger.error('Error extracting replied message context', error);
       return '';
+    }
+  }
+
+  private async handleSetupCommand(context: TurnContext): Promise<void> {
+    try {
+      // Get current user configuration
+      const userConfig = await this.userConfigAccessor.get(context, {
+        isConfigured: false,
+      });
+
+      // Show setup card
+      const setupCard = AdaptiveCardBuilder.buildSetupCard(userConfig);
+      await context.sendActivity(MessageFactory.attachment(setupCard));
+
+      logger.info('Setup card sent to user', {
+        userId: context.activity.from.id,
+        isConfigured: userConfig.isConfigured,
+      });
+    } catch (error) {
+      logger.error('Error handling setup command', error);
+      await context.sendActivity(
+        MessageFactory.text('❌ Failed to show setup card. Please try again.')
+      );
     }
   }
 

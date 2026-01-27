@@ -1,5 +1,5 @@
 import { Attachment, CardFactory } from 'botbuilder';
-import { BugDetails, ADOConfig } from '../types';
+import { BugDetails, ADOConfig, UserConfig } from '../types';
 
 export class AdaptiveCardBuilder {
   public static buildBugPreviewCard(
@@ -142,6 +142,75 @@ export class AdaptiveCardBuilder {
           type: 'Action.OpenUrl',
           title: 'View in Azure DevOps',
           url: bugUrl,
+        },
+      ],
+    };
+
+    return CardFactory.adaptiveCard(card);
+  }
+
+  public static buildSetupCard(currentConfig?: UserConfig): Attachment {
+    const card = {
+      type: 'AdaptiveCard',
+      version: '1.4',
+      body: [
+        {
+          type: 'TextBlock',
+          text: '⚙️ Bug Basher Setup',
+          weight: 'bolder',
+          size: 'large',
+        },
+        {
+          type: 'TextBlock',
+          text: 'Configure your personal settings for creating bugs in Azure DevOps.',
+          wrap: true,
+          spacing: 'small',
+        },
+        {
+          type: 'Input.Text',
+          id: 'pat',
+          label: 'Personal Access Token (PAT)',
+          isRequired: true,
+          style: 'Password',
+          value: currentConfig?.pat || '',
+          placeholder: 'Your Azure DevOps PAT',
+        },
+        {
+          type: 'TextBlock',
+          text: 'ℹ️ Create a PAT at: dev.azure.com → User Settings → Personal access tokens. Requires "Work Items: Read & Write" permission.',
+          wrap: true,
+          size: 'small',
+          isSubtle: true,
+          spacing: 'small',
+        },
+        {
+          type: 'Input.Text',
+          id: 'areaPath',
+          label: 'Area Path',
+          isRequired: true,
+          value: currentConfig?.areaPath || '',
+          placeholder: 'e.g., ODSP Product Experiences\\YourTeam',
+        },
+        {
+          type: 'Input.Text',
+          id: 'iterationPath',
+          label: 'Iteration Path',
+          isRequired: true,
+          value: currentConfig?.iterationPath || '',
+          placeholder: 'e.g., ODSP Product Experiences\\Sprint 42',
+        },
+      ],
+      actions: [
+        {
+          type: 'Action.Submit',
+          title: '💾 Save Configuration',
+          style: 'positive',
+          data: { action: 'saveConfig' },
+        },
+        {
+          type: 'Action.Submit',
+          title: '❌ Cancel',
+          data: { action: 'cancel' },
         },
       ],
     };
