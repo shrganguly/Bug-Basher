@@ -133,12 +133,20 @@ export class BugRaiserBot extends ActivityHandler {
       // Check if user is configured
       const userConfig = await this.userConfigAccessor.get(context, { isConfigured: false });
       if (!userConfig.isConfigured) {
-        await context.sendActivity(
-          MessageFactory.text(
-            '⚠️ Please set up your Bug Basher configuration first.\n\n' +
+        const conversationType = context.activity.conversation?.conversationType;
+        const isPersonalChat = conversationType === 'personal';
+
+        const setupMessage = isPersonalChat
+          ? '⚠️ Please set up your Bug Basher configuration first.\n\n' +
             'Type `@bug basher setup` to configure your Personal Access Token and default paths.'
-          )
-        );
+          : '⚠️ Please set up your Bug Basher configuration first.\n\n' +
+            '🔒 For security, setup must be done in a private chat. Please:\n' +
+            '1. Open a direct message with me (Bug Basher)\n' +
+            '2. Type `@bug basher setup`\n' +
+            '3. Configure your Personal Access Token and default paths\n\n' +
+            'Then return here to create bugs!';
+
+        await context.sendActivity(MessageFactory.text(setupMessage));
         return;
       }
 
@@ -197,6 +205,24 @@ export class BugRaiserBot extends ActivityHandler {
 
       // Handle save config action
       if (submittedData.action === 'saveConfig') {
+        // Security check: Ensure config is only saved in 1:1 chats
+        const conversationType = context.activity.conversation?.conversationType;
+        const isPersonalChat = conversationType === 'personal';
+
+        if (!isPersonalChat) {
+          await context.sendActivity(
+            MessageFactory.text(
+              '🔒 **Security Error**: Configuration can only be saved in a private 1:1 chat.\n\n' +
+              'Please open a direct message with me and run setup there.'
+            )
+          );
+          logger.warn('Blocked saveConfig attempt in non-personal chat', {
+            userId: context.activity.from.id,
+            conversationType,
+          });
+          return;
+        }
+
         const newConfig: UserConfig = {
           pat: submittedData.pat,
           areaPath: submittedData.areaPath,
@@ -311,6 +337,24 @@ export class BugRaiserBot extends ActivityHandler {
 
   private async handleSetupCommand(context: TurnContext): Promise<void> {
     try {
+      // Security check: Setup should only be done in 1:1 chats to protect PAT credentials
+      const conversationType = context.activity.conversation?.conversationType;
+      const isPersonalChat = conversationType === 'personal';
+
+      if (!isPersonalChat) {
+        await context.sendActivity(
+          MessageFactory.text(
+            '🔒 **Security Notice**: For your protection, setup must be done in a private 1:1 chat.\n\n' +
+            'Please open a direct message with me and type `@bug basher setup` there to configure your Personal Access Token securely.'
+          )
+        );
+        logger.info('Setup command blocked in non-personal chat', {
+          userId: context.activity.from.id,
+          conversationType,
+        });
+        return;
+      }
+
       // Get current user configuration
       const userConfig = await this.userConfigAccessor.get(context, {
         isConfigured: false,
