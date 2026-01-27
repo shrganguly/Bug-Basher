@@ -138,11 +138,11 @@ export class BugRaiserBot extends ActivityHandler {
 
         const setupMessage = isPersonalChat
           ? '⚠️ Please set up your Bug Basher configuration first.\n\n' +
-            'Type `@bug basher setup` to configure your Personal Access Token and default paths.'
+            'Type `setup` to configure your Personal Access Token and default paths.'
           : '⚠️ Please set up your Bug Basher configuration first.\n\n' +
             '🔒 For security, setup must be done in a private chat. Please:\n' +
             '1. Open a direct message with me (Bug Basher)\n' +
-            '2. Type `@bug basher setup`\n' +
+            '2. Type `setup`\n' +
             '3. Configure your Personal Access Token and default paths\n\n' +
             'Then return here to create bugs!';
 
@@ -345,7 +345,7 @@ export class BugRaiserBot extends ActivityHandler {
         await context.sendActivity(
           MessageFactory.text(
             '🔒 **Security Notice**: For your protection, setup must be done in a private 1:1 chat.\n\n' +
-            'Please open a direct message with me and type `@bug basher setup` there to configure your Personal Access Token securely.'
+            'Please open a direct message with me and type `setup` there to configure your Personal Access Token securely.'
           )
         );
         logger.info('Setup command blocked in non-personal chat', {
@@ -388,20 +388,24 @@ export class BugRaiserBot extends ActivityHandler {
   }
 
   private buildWelcomeMessage(): string {
-    return `👋 **Welcome to Bug Raiser Bot!**
+    return `👋 **Welcome to Bug Basher!**
 
 I help you create Azure DevOps bugs automatically by analyzing conversation context.
 
-**How to use:**
-1. Reply to any message containing bug details
-2. Type: \`@bug raiser raise a bug\`
-3. I'll analyze the context and create a bug in ADO
-4. You'll receive a link to review the bug
+**First Time Setup (Required):**
+1. In this 1:1 chat, type: \`setup\`
+2. Configure your Personal Access Token and default paths
+3. Your settings are stored securely and privately
 
-**Example commands:**
-- \`@bug raiser raise a bug\`
-- \`@bug raiser create a bug\`
-- \`@bug raiser report a bug\`
+**Creating Bugs:**
+- **In 1:1 chat**: Type \`raise a bug\`, \`create a bug\`, or \`report a bug\`
+- **In group chats**: Use \`@bug basher raise a bug\` (@ mention required)
+
+**How it works:**
+1. Reply to a message containing bug details
+2. Use a bug command
+3. Review and edit the bug preview
+4. Submit to create in Azure DevOps
 
 Let me know if you need any help!`;
   }
