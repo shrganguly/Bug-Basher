@@ -5,7 +5,9 @@ export class AdaptiveCardBuilder {
   public static buildBugPreviewCard(
     bugDetails: BugDetails,
     adoConfig: ADOConfig,
-    originalMessage: string
+    originalMessage: string,
+    areaPaths: string[],
+    iterationPaths: string[]
   ): Attachment {
     const card = {
       type: 'AdaptiveCard',
@@ -33,18 +35,20 @@ export class AdaptiveCardBuilder {
           maxLength: 255,
         },
         {
-          type: 'Input.Text',
+          type: 'Input.ChoiceSet',
           id: 'areaPath',
           label: 'Area Path',
-          value: adoConfig.areaPath || '',
-          placeholder: 'e.g., ProjectName\\AreaName',
+          value: bugDetails.areaPath || adoConfig.areaPath || (areaPaths.length > 0 ? areaPaths[0] : ''),
+          choices: areaPaths.map(path => ({ title: path, value: path })),
+          style: 'compact',
         },
         {
-          type: 'Input.Text',
+          type: 'Input.ChoiceSet',
           id: 'iterationPath',
           label: 'Iteration Path',
-          value: adoConfig.iterationPath || '',
-          placeholder: 'e.g., ProjectName\\Sprint 1',
+          value: bugDetails.iterationPath || adoConfig.iterationPath || (iterationPaths.length > 0 ? iterationPaths[0] : ''),
+          choices: iterationPaths.map(path => ({ title: path, value: path })),
+          style: 'compact',
         },
         {
           type: 'Input.ChoiceSet',

@@ -151,6 +151,69 @@ export class ADOService {
     return severityMap[severity] || '3 - Medium';
   }
 
+  public async getAreaPaths(): Promise<string[]> {
+    try {
+      logger.info('Fetching area paths from ADO');
+
+      const response = await this.client.get(
+        `/wit/classificationnodes/areas?$depth=10&api-version=7.0`
+      );
+
+      const paths = this.flattenClassificationNodes(response.data, 'area');
+      logger.info('Area paths fetched', { count: paths.length });
+      return paths;
+    } catch (error) {
+      logger.error('Failed to fetch area paths', error);
+      // Return default if fetch fails
+      return this.config.areaPath ? [this.config.areaPath] : [];
+    }
+  }
+
+  public async getIterationPaths(): Promise<string[]> {
+    try {
+      logger.info('Fetching iteration paths from ADO');
+
+      const response = await this.client.get(
+        `/wit/classificationnodes/iterations?$depth=10&api-version=7.0`
+      );
+
+      const paths = this.flattenClassificationNodes(response.data, 'iteration');
+      logger.info('Iteration paths fetched', { count: paths.length });
+      return paths;
+    } catch (error) {
+      logger.error('Failed to fetch iteration paths', error);
+      // Return default if fetch fails
+      return this.config.iterationPath ? [this.config.iterationPath] : [];
+    }
+  }
+
+  private flattenClassificationNodes(
+    node: any,
+    type: 'area' | 'iteration',
+    parentPath = ''
+  ): string[] {
+    const paths: string[] = [];
+
+    // Build current path
+    const currentPath = parentPath
+      ? `${parentPath}\\${node.name}`
+      : node.name;
+
+    // Add current path if it's not the root project node
+    if (parentPath) {
+      paths.push(currentPath);
+    }
+
+    // Recursively process children
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        paths.push(...this.flattenClassificationNodes(child, type, currentPath));
+      }
+    }
+
+    return paths;
+  }
+
   private escapeHtml(text: string): string {
     const map: { [key: string]: string } = {
       '&': '&amp;',
