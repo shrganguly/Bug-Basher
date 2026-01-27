@@ -127,24 +127,11 @@ export class BugRaiserBot extends ActivityHandler {
 
       logger.info('Bug details extracted', { title: bugDetails.title });
 
-      // Step 2: Fetch area and iteration paths from ADO
-      const [areaPaths, iterationPaths] = await Promise.all([
-        this.adoService.getAreaPaths(),
-        this.adoService.getIterationPaths(),
-      ]);
-
-      logger.info('ADO paths fetched', {
-        areaPathCount: areaPaths.length,
-        iterationPathCount: iterationPaths.length,
-      });
-
-      // Step 3: Show preview card for user to review and edit
+      // Step 2: Show preview card for user to review and edit
+      // Using text inputs for area/iteration to avoid card size limits
       const previewCard = AdaptiveCardBuilder.buildBugPreviewCard(
         bugDetails,
-        this.adoConfig,
-        messageContext,
-        areaPaths,
-        iterationPaths
+        this.adoConfig
       );
 
       await context.sendActivity(MessageFactory.attachment(previewCard));
