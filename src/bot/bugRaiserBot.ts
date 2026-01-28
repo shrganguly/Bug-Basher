@@ -146,9 +146,9 @@ export class BugRaiserBot extends ActivityHandler {
         let setupMessage: string;
         if (configValidation.reason === 'expired') {
           setupMessage = isPersonalChat
-            ? '⏰ Your Bug Basher configuration has expired (5 days).\n\n' +
+            ? '⏰ Your Bug Basher configuration has expired (1 year).\n\n' +
               'Type `setup` to renew your configuration.'
-            : '⏰ Your Bug Basher configuration has expired (5 days).\n\n' +
+            : '⏰ Your Bug Basher configuration has expired (1 year).\n\n' +
               '🔒 For security, setup must be done in a private chat. Please:\n' +
               '1. Open a direct message with me (Bug Basher)\n' +
               '2. Type `setup` to renew your configuration\n\n' +
@@ -253,9 +253,9 @@ export class BugRaiserBot extends ActivityHandler {
         // Encrypt the PAT token before storing
         const encryptedPat = encryptionService.encrypt(submittedData.pat);
 
-        // Set expiration to 5 days from now
+        // Set expiration to 1 year from now
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 5);
+        expiresAt.setDate(expiresAt.getDate() + 365);
 
         const newConfig: UserConfig = {
           pat: encryptedPat, // ✅ Store encrypted PAT
@@ -263,7 +263,7 @@ export class BugRaiserBot extends ActivityHandler {
           iterationPath: submittedData.iterationPath,
           isConfigured: true,
           configuredAt: new Date(),
-          expiresAt: expiresAt, // ✅ Config expires in 5 days
+          expiresAt: expiresAt, // ✅ Config expires in 1 year
         };
 
         await this.userConfigAccessor.set(context, newConfig);
@@ -280,7 +280,7 @@ export class BugRaiserBot extends ActivityHandler {
             `Your settings:\n` +
             `- Area Path: ${newConfig.areaPath}\n` +
             `- Iteration Path: ${newConfig.iterationPath}\n` +
-            `- Valid for: 5 days (expires ${expiresAt.toLocaleDateString()})\n\n` +
+            `- Valid for: 1 year (expires ${expiresAt.toLocaleDateString()})\n\n` +
             `🔒 Your PAT token is encrypted and stored securely.\n\n` +
             `You can now use "raise a bug" to create bugs!`
           )
@@ -580,7 +580,7 @@ Let me know if you need any help!`;
       return { isValid: false, reason: 'no_pat' };
     }
 
-    // Check if config has expired (5 days)
+    // Check if config has expired (1 year)
     if (userConfig.expiresAt) {
       const now = new Date();
       const expiresAt = new Date(userConfig.expiresAt);
