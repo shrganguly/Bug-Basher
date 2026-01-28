@@ -41,3 +41,6 @@ appPackage/*.zip
 .cache/
 tmp/
 temp/
+
+# Bot state storage (contains user data - never commit!)
+storage/
