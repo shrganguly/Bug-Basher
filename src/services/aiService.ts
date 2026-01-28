@@ -2,15 +2,21 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AzureOpenAI } from 'openai';
 import { AIConfig, BugDetails } from '../types';
 import { logger } from '../utils/logger';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class AIService {
   private claudeClient?: Anthropic;
   private azureOpenAIClient?: AzureOpenAI;
   private provider: 'claude' | 'azure-openai';
   private model: string;
+  private bugUnderstandingPrompt: string;
 
   constructor(config: AIConfig) {
     this.provider = config.provider;
+
+    // Load bug understanding prompt from file
+    this.bugUnderstandingPrompt = this.loadBugUnderstandingPrompt();
 
     if (config.provider === 'claude') {
       this.claudeClient = new Anthropic({
@@ -34,6 +40,21 @@ export class AIService {
     }
 
     logger.info(`AI Service initialized with provider: ${config.provider}`);
+  }
+
+  private loadBugUnderstandingPrompt(): string {
+    try {
+      const promptPath = path.join(__dirname, '../../bug_understanding.md');
+      const prompt = fs.readFileSync(promptPath, 'utf-8');
+      logger.info('Bug understanding prompt loaded successfully');
+      return prompt;
+    } catch (error) {
+      logger.error('Failed to load bug understanding prompt, using fallback', error);
+      // Fallback to basic prompt if file cannot be loaded
+      return `You are a bug analysis assistant. Analyze user messages and extract structured bug information.
+
+Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavior, severity (Critical|High|Medium|Low), tags.`;
+    }
   }
 
   public async analyzeBugContext(
@@ -129,38 +150,7 @@ export class AIService {
   }
 
   private buildSystemPrompt(): string {
-    return `You are a bug analysis assistant. Analyze user messages and extract bug information.
-
-Your task:
-1. Create a concise, professional bug title (max 80 characters) - SUMMARIZE, don't copy verbatim. Use technical, actionable language.
-2. Write a detailed description - Start with "Original message: " followed by the user's message in quotes, then add your analysis
-3. Identify reproduction steps if mentioned
-4. Determine expected vs actual behavior
-5. Assess severity level: Critical, High, Medium, or Low
-6. Suggest 3-5 relevant tags (keywords like "login", "mobile", "UI", "performance", etc.)
-
-Title examples:
-- Good: "Login button unresponsive on mobile Safari"
-- Bad: "Login button is not working" (too generic, not summarized)
-
-Severity guidelines:
-- Critical: System crash, data loss, security vulnerability
-- High: Major feature broken, blocks user workflow
-- Medium: Feature partially broken, workaround exists
-- Low: Minor issue, cosmetic problem, enhancement
-
-Return ONLY valid JSON in this exact format (no markdown, no extra text):
-{
-  "title": "Concise summarized title",
-  "description": "Detailed description",
-  "reproSteps": "1. Step one\\n2. Step two\\n3. Step three",
-  "expectedBehavior": "What should happen",
-  "actualBehavior": "What actually happens",
-  "severity": "High",
-  "tags": ["tag1", "tag2", "tag3"]
-}
-
-If information is not explicitly provided, make reasonable inferences from context.`;
+    return this.bugUnderstandingPrompt;
   }
 
   private buildUserPrompt(messageText: string, conversationContext?: string): string {
