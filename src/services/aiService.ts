@@ -32,7 +32,7 @@ export class AIService {
         apiKey: config.apiKey,
         endpoint: config.endpoint,
         apiVersion: config.apiVersion || '2024-08-01-preview',
-        deployment: config.deploymentName,
+        // Don't set deployment here - it's passed as 'model' parameter in API calls
       });
       this.model = config.deploymentName;
     } else {
