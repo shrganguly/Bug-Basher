@@ -4,11 +4,11 @@ import {
   CloudAdapter,
   ConfigurationServiceClientCredentialFactory,
   createBotFrameworkAuthenticationFromConfiguration,
-  MemoryStorage,
   ConversationState,
   UserState,
   Storage,
 } from 'botbuilder';
+import { BlobsStorage } from 'botbuilder-azure-blobs';
 import { getConfig, validateConfig } from './utils/config';
 import { logger } from './utils/logger';
 import { BugRaiserBot } from './bot/bugRaiserBot';
@@ -60,17 +60,18 @@ adapter.onTurnError = async (context, error) => {
 };
 
 // Create storage and state management
-// Using File Storage for persistence (FREE solution)
 let storage: Storage;
 
-const useFileStorage = process.env.USE_FILE_STORAGE !== 'false'; // Default to true
+const azureStorageConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+const azureStorageContainerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'bot-state';
 
-if (useFileStorage) {
-  logger.info('✅ Using File Storage for state persistence');
-  storage = new FileStorage();
+if (azureStorageConnectionString) {
+  logger.info('✅ Using Azure Blob Storage for state persistence (production-ready)');
+  storage = new BlobsStorage(azureStorageConnectionString, azureStorageContainerName);
 } else {
-  logger.warn('❌ Using MemoryStorage - State will be lost on every restart!');
-  storage = new MemoryStorage();
+  logger.warn('⚠️  Azure Blob Storage not configured - using FileStorage (will be lost on Render restarts)');
+  logger.warn('⚠️  Set AZURE_STORAGE_CONNECTION_STRING for persistent storage');
+  storage = new FileStorage();
 }
 
 const conversationState = new ConversationState(storage);

@@ -27,6 +27,7 @@
     "@azure/openai": "^2.0.0",
     "axios": "^1.6.0",
     "botbuilder": "^4.23.3",
+    "botbuilder-azure-blobs": "^4.23.3",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "dotenv": "^16.0.3",
