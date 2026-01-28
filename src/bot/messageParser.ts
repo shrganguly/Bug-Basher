@@ -102,17 +102,19 @@ export class MessageParser {
       }
     }
 
-    // Fallback: Check if text contains @mention tags (any name)
+    // Fallback: Check if text contains explicit bot mentions
     const text = activity.text || '';
-    const hasAtMention = text.includes('<at>') && text.includes('</at>');
+    const hasBugBasherMention = text.toLowerCase().includes('bug basher');
+    const hasBugRaiserMention = text.toLowerCase().includes('bug raiser');
 
     logger.info('Bot mention check', {
-      hasAtMention,
+      hasBugBasherMention,
+      hasBugRaiserMention,
       textPreview: text.substring(0, 100)
     });
 
-    // If there's any @mention in the text, assume it's the bot since this is likely a bot conversation
-    return hasAtMention || text.includes('@bug raiser') || text.includes('@bug basher');
+    // Only return true if explicitly mentioned by name
+    return hasBugBasherMention || hasBugRaiserMention;
   }
 
   private removeBotMentions(text: string, activity: Activity): string {
@@ -122,10 +124,9 @@ export class MessageParser {
     cleanText = cleanText.replace(/<at>.*?<\/at>/gi, '');
     cleanText = cleanText.replace(/<at[^>]*>.*?<\/at>/gi, '');
 
-    // Also remove common bot mention patterns
-    cleanText = cleanText.replace(/@bug basher/gi, '');
-    cleanText = cleanText.replace(/@bug raiser/gi, '');
-    cleanText = cleanText.replace(/@speak easy/gi, '');
+    // Also remove common bot mention patterns (with or without @)
+    cleanText = cleanText.replace(/@?bug basher/gi, '');
+    cleanText = cleanText.replace(/@?bug raiser/gi, '');
 
     // Remove entity mentions
     if (activity.entities) {
