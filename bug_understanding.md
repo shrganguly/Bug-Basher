@@ -190,7 +190,7 @@ The bug description should provide complete context and be structured for clarit
 [Who is affected? How severe is the impact?]
 
 **Additional Details:**
-[Any other relevant information, error messages, data, screenshots mentioned]
+[Any other relevant information, error messages, data, screenshots mentioned. DO NOT include recommendations or solutions.]
 
 **Environment:**
 [Browser, device, version, etc. if mentioned]
@@ -204,6 +204,8 @@ The bug description should provide complete context and be structured for clarit
 4. **Note user quotes** if they provide important details
 5. **Keep technical details** like URLs, IDs, version numbers
 6. **Maintain chronological order** if describing a sequence of events
+7. **NEVER include recommendations, solutions, or suggestions** on how to fix the bug
+8. **Focus on describing the problem only** - not potential solutions
 
 ### Example Description
 
@@ -334,17 +336,18 @@ Extract relevant tags from the conversation that categorize the bug.
 
 ### Tag Guidelines
 
-- Extract 2-5 relevant tags
+- Extract EXACTLY 2 high-quality, relevant tags
 - Use lowercase, single words or hyphenated phrases
 - Prefer specific tags over generic ones
-- Include platform if mentioned (web, mobile, etc.)
+- Choose the most important categorization (e.g., feature area + platform, or feature area + type)
+- Quality over quantity - only the 2 most relevant tags
 
 ### Example Tags
 
 ```
-["file-upload", "performance", "web", "timeout"]
-["login", "mobile", "ios", "critical"]
-["dashboard", "ui", "charts", "visualization"]
+["file-upload", "performance"]
+["login", "mobile"]
+["dashboard", "ui"]
 ```
 
 ---
@@ -459,24 +462,24 @@ Always return a JSON object with the following structure:
 ```json
 {
   "title": "Concise bug title (50-100 characters)",
-  "description": "Detailed description with context, impact, and additional details",
+  "description": "Detailed description with context, impact, and additional details. DO NOT include recommendations or solutions.",
   "reproSteps": "Step-by-step reproduction instructions (if available)",
   "expectedBehavior": "What should happen (if mentioned)",
   "actualBehavior": "What actually happens (if mentioned)",
   "severity": "Critical|High|Medium|Low",
-  "tags": ["tag1", "tag2", "tag3"]
+  "tags": ["tag1", "tag2"]
 }
 ```
 
 ### Field Requirements
 
 - `title`: **Required** - Always provide a title
-- `description`: **Required** - Always provide a description
+- `description`: **Required** - Always provide a description (NEVER include recommendations or solutions)
 - `reproSteps`: Optional - Only if steps are mentioned or can be inferred
 - `expectedBehavior`: Optional - Only if explicitly mentioned
 - `actualBehavior`: Optional - Only if explicitly mentioned
 - `severity`: **Required** - Always assess severity (default: Medium if unclear)
-- `tags`: Optional - Provide 2-5 relevant tags if possible
+- `tags`: **Required** - Provide EXACTLY 2 high-quality, relevant tags
 
 ---
 
@@ -496,7 +499,7 @@ Always return a JSON object with the following structure:
   "expectedBehavior": "The login button should respond to tap and submit the login form",
   "actualBehavior": "The login button does not respond to tap events",
   "severity": "High",
-  "tags": ["login", "mobile", "ui", "button"]
+  "tags": ["login", "mobile"]
 }
 ```
 
@@ -511,7 +514,7 @@ Always return a JSON object with the following structure:
   "title": "API /api/users endpoint returns 500 error with database timeout",
   "description": "The /api/users endpoint is returning HTTP 500 errors with 'Database connection timeout' error message. This issue started occurring after the deployment on [date mentioned as 'yesterday'].\n\n**Context:**\nThis issue is blocking the entire user management feature, preventing any user-related operations.\n\n**Impact:**\nCritical - All user management functionality is unavailable. This affects administrators and any features that depend on user data retrieval.\n\n**Additional Details:**\n- Error message: 'Database connection timeout'\n- Endpoint: /api/users\n- HTTP Status: 500\n- Started after recent deployment\n\n**Environment:**\nProduction environment",
   "severity": "Critical",
-  "tags": ["api", "database", "timeout", "user-management", "500-error"]
+  "tags": ["api", "database"]
 }
 ```
 
@@ -529,7 +532,7 @@ Always return a JSON object with the following structure:
   "expectedBehavior": "The form should be scrollable or the submit button should be visible within the initial viewport",
   "actualBehavior": "The submit button is positioned below the viewport and the form is not scrollable",
   "severity": "High",
-  "tags": ["ui", "mobile", "ios", "iphone", "form", "feedback"]
+  "tags": ["ui", "mobile"]
 }
 ```
 
@@ -552,7 +555,7 @@ Always return a JSON object with the following structure:
   "title": "Document generation forms not discoverable in UI",
   "description": "Document generation forms are not discoverable in the user interface, making them difficult or impossible for users to find and access.\n\n**Context:**\nUsers report that document generation (doc gen) forms cannot be easily found within the application interface.\n\n**Impact:**\nUsers who need to generate documents cannot locate the forms, potentially blocking their workflow and requiring support assistance.\n\n**Additional Details:**\nThe issue relates to UI discoverability - the forms may exist but are not visible or accessible through normal navigation.",
   "severity": "Medium",
-  "tags": ["ui", "document-generation", "discoverability", "navigation"]
+  "tags": ["ui", "document-generation"]
 }
 ```
 
