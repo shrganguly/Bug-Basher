@@ -134,6 +134,11 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
       const systemPrompt = this.buildSystemPrompt();
       const userPrompt = this.buildUserPrompt(messageText, conversationContext);
 
+      logger.info('Calling Azure OpenAI API', {
+        endpoint: this.azureOpenAIClient?.baseURL,
+        deployment: this.model,
+      });
+
       const response = await this.azureOpenAIClient!.chat.completions.create({
         model: this.model,
         messages: [
@@ -145,8 +150,17 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
         response_format: { type: 'json_object' },
       });
 
+      logger.info('Azure OpenAI response received', {
+        hasChoices: !!response.choices,
+        choicesLength: response.choices?.length,
+        hasContent: !!response.choices?.[0]?.message?.content,
+      });
+
       const content = response.choices[0]?.message?.content;
       if (!content) {
+        logger.error('Empty response from Azure OpenAI', {
+          response: JSON.stringify(response),
+        });
         throw new Error('No response from Azure OpenAI');
       }
 
