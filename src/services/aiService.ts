@@ -140,7 +140,7 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.3,
+        // Temperature removed - some Azure OpenAI models only support default (1)
         max_completion_tokens: 1000,
         response_format: { type: 'json_object' },
       });
