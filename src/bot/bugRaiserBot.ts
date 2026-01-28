@@ -296,14 +296,26 @@ export class BugRaiserBot extends ActivityHandler {
         // Get user's configuration
         const userConfig = await this.userConfigAccessor.get(context, { isConfigured: false });
 
+        logger.info('User config retrieved for bug creation', {
+          userId: context.activity.from.id,
+          isConfigured: userConfig.isConfigured,
+          hasPat: !!userConfig.pat,
+          hasExpiresAt: !!userConfig.expiresAt,
+          expiresAt: userConfig.expiresAt,
+        });
+
         // Validate config and decrypt PAT
         const configValidation = this.validateUserConfig(userConfig);
         if (!configValidation.isValid) {
-          await context.sendActivity(
-            MessageFactory.text(
-              '⏰ Your configuration has expired. Please run `setup` again to renew.'
-            )
-          );
+          let errorMessage: string;
+          if (configValidation.reason === 'expired') {
+            errorMessage = '⏰ Your configuration has expired (1 year). Please run `setup` again to renew.';
+          } else if (configValidation.reason === 'no_pat') {
+            errorMessage = '⚠️ PAT token is missing. Please run `setup` again.';
+          } else {
+            errorMessage = '⚠️ You need to set up Bug Basher first. Please run `setup` in a 1:1 chat with me.';
+          }
+          await context.sendActivity(MessageFactory.text(errorMessage));
           return;
         }
 
