@@ -102,8 +102,17 @@ export class BugRaiserBot extends ActivityHandler {
       // If no replied message, use the command message itself (remove the command part)
       if (!messageContext && activity.text) {
         const cleanText = activity.text.replace(/<at>.*?<\/at>/g, '').trim();
-        const commandPattern = /(raise|create|report|log)\s+a?\s*bug/i;
+        // Remove everything up to and including the command pattern and any separator (-, :, |)
+        const commandPattern = /^.*?(raise|create|report|log)\s+a?\s*bug\s*[-:|\s]*/i;
         messageContext = cleanText.replace(commandPattern, '').trim();
+
+        // Remove any remaining leading punctuation and whitespace
+        messageContext = messageContext.replace(/^[-:•*|\s]+/, '').trim();
+
+        logger.info('Cleaned message context', {
+          original: activity.text?.substring(0, 100),
+          cleaned: messageContext.substring(0, 100)
+        });
 
         // Remove quoted message author line (Teams includes "Author Name\r\nMessage content")
         // Split by line breaks and skip the first line if it looks like a name
