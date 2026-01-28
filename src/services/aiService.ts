@@ -74,9 +74,16 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
       }
 
       throw new Error('No AI client configured');
-    } catch (error) {
-      logger.error('AI analysis failed', error);
+    } catch (error: any) {
+      logger.error('AI analysis failed, using fallback parsing', {
+        errorType: error.name,
+        errorMessage: error.message,
+        status: error.status,
+        provider: this.provider,
+      });
+
       // Fallback to basic parsing if AI fails
+      logger.info('Using fallback parsing for bug details');
       return this.fallbackParsing(messageText);
     }
   }
@@ -123,30 +130,43 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
     messageText: string,
     conversationContext?: string
   ): Promise<BugDetails> {
-    const systemPrompt = this.buildSystemPrompt();
-    const userPrompt = this.buildUserPrompt(messageText, conversationContext);
+    try {
+      const systemPrompt = this.buildSystemPrompt();
+      const userPrompt = this.buildUserPrompt(messageText, conversationContext);
 
-    const response = await this.azureOpenAIClient!.chat.completions.create({
-      model: this.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.3,
-      max_completion_tokens: 1000,
-      response_format: { type: 'json_object' },
-    });
+      const response = await this.azureOpenAIClient!.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.3,
+        max_completion_tokens: 1000,
+        response_format: { type: 'json_object' },
+      });
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('No response from Azure OpenAI');
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No response from Azure OpenAI');
+      }
+
+      const parsedResult = JSON.parse(content);
+      const bugDetails = this.validateAndNormalizeBugDetails(parsedResult);
+
+      logger.info('AI analysis complete', { title: bugDetails.title });
+      return bugDetails;
+    } catch (error: any) {
+      logger.error('Azure OpenAI API error', {
+        status: error.status,
+        statusText: error.statusText,
+        code: error.code,
+        type: error.type,
+        message: error.message,
+        endpoint: this.azureOpenAIClient?.baseURL,
+        deployment: this.model,
+      });
+      throw error;
     }
-
-    const parsedResult = JSON.parse(content);
-    const bugDetails = this.validateAndNormalizeBugDetails(parsedResult);
-
-    logger.info('AI analysis complete', { title: bugDetails.title });
-    return bugDetails;
   }
 
   private buildSystemPrompt(): string {
