@@ -154,13 +154,45 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
   }
 
   private buildUserPrompt(messageText: string, conversationContext?: string): string {
-    let prompt = `Analyze this bug report:\n\n${messageText}`;
+    // Clean the message text before analysis
+    const cleanedMessage = this.cleanMessageText(messageText);
+
+    let prompt = `Analyze the following message and extract bug information.
+
+IMPORTANT INSTRUCTIONS:
+- The user message may contain command phrases like "raise a bug", "create a bug" - these are NOT part of the bug description
+- Remove any leading punctuation (dashes, colons, etc.) from your generated title
+- Create a professional, actionable title that summarizes the core issue
+- Do NOT copy the user's message verbatim as the title - summarize and professionalize it
+
+User Message:
+"""
+${cleanedMessage}
+"""`;
 
     if (conversationContext) {
       prompt += `\n\nAdditional context from conversation:\n${conversationContext}`;
     }
 
+    prompt += `\n\nReturn only valid JSON with the bug details.`;
+
     return prompt;
+  }
+
+  private cleanMessageText(messageText: string): string {
+    let cleaned = messageText;
+
+    // Remove common command patterns that might remain
+    cleaned = cleaned.replace(/^.*?(raise|create|report|log)\s+a?\s*bug\s*[-:]\s*/i, '');
+
+    // Remove leading/trailing dashes, colons, and whitespace
+    cleaned = cleaned.replace(/^[-:\s]+/, '');
+    cleaned = cleaned.replace(/[-:\s]+$/, '');
+
+    // Clean up multiple spaces
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+    return cleaned;
   }
 
   private validateAndNormalizeBugDetails(parsed: any): BugDetails {
@@ -174,8 +206,12 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
     const severity =
       severityMap[parsed.severity?.toLowerCase()] || 'Medium';
 
+    // Clean and normalize the title
+    let title = parsed.title || 'Bug Report';
+    title = this.cleanBugTitle(title);
+
     return {
-      title: parsed.title || 'Bug Report',
+      title,
       description: parsed.description || 'No description provided',
       reproSteps: parsed.reproSteps,
       expectedBehavior: parsed.expectedBehavior,
@@ -183,6 +219,28 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
       severity,
       tags: parsed.tags || [],
     };
+  }
+
+  private cleanBugTitle(title: string): string {
+    let cleaned = title;
+
+    // Remove leading punctuation and whitespace
+    cleaned = cleaned.replace(/^[-•:*\s]+/, '');
+
+    // Remove trailing punctuation and whitespace
+    cleaned = cleaned.replace(/[-:*\s]+$/, '');
+
+    // Capitalize first letter if not already
+    if (cleaned.length > 0) {
+      cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+
+    // Ensure title is not too long (max 100 characters)
+    if (cleaned.length > 100) {
+      cleaned = cleaned.substring(0, 97) + '...';
+    }
+
+    return cleaned.trim();
   }
 
   private fallbackParsing(messageText: string): BugDetails {
