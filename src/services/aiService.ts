@@ -28,11 +28,12 @@ export class AIService {
         throw new Error('Azure OpenAI requires endpoint and deploymentName');
       }
 
+      // Initialize Azure OpenAI client with deployment parameter
       this.azureOpenAIClient = new AzureOpenAI({
         apiKey: config.apiKey,
         endpoint: config.endpoint,
         apiVersion: config.apiVersion || '2024-08-01-preview',
-        // Don't set deployment here - it's passed as 'model' parameter in API calls
+        deployment: config.deploymentName,
       });
       this.model = config.deploymentName;
     } else {
@@ -135,10 +136,10 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
       const userPrompt = this.buildUserPrompt(messageText, conversationContext);
 
       logger.info('Calling Azure OpenAI API', {
-        endpoint: this.azureOpenAIClient?.baseURL,
         deployment: this.model,
       });
 
+      // Model parameter is required even when deployment is set
       const response = await this.azureOpenAIClient!.chat.completions.create({
         model: this.model,
         messages: [
@@ -146,7 +147,6 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
           { role: 'user', content: userPrompt },
         ],
         // Temperature removed - some Azure OpenAI models only support default (1)
-        // GPT-5 Mini is a reasoning model that uses tokens internally, needs more for output
         max_completion_tokens: 3000,
         response_format: { type: 'json_object' },
       });
@@ -158,7 +158,6 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
         finishReason: response.choices?.[0]?.finish_reason,
         promptTokens: response.usage?.prompt_tokens,
         completionTokens: response.usage?.completion_tokens,
-        reasoningTokens: (response.usage as any)?.completion_tokens_details?.reasoning_tokens,
       });
 
       const content = response.choices[0]?.message?.content;
@@ -174,7 +173,6 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
           throw new Error('AI response truncated due to token limit - prompt may be too long');
         }
         logger.error('Empty response from Azure OpenAI', {
-          response: JSON.stringify(response),
           finishReason,
         });
         throw new Error('No response from Azure OpenAI');
@@ -188,11 +186,8 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
     } catch (error: any) {
       logger.error('Azure OpenAI API error', {
         status: error.status,
-        statusText: error.statusText,
         code: error.code,
-        type: error.type,
         message: error.message,
-        endpoint: this.azureOpenAIClient?.baseURL,
         deployment: this.model,
       });
       throw error;
