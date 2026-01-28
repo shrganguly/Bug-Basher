@@ -5,6 +5,7 @@ import { AIService } from '../services/aiService';
 import { ADOService } from '../services/adoService';
 import { AdaptiveCardBuilder } from './adaptiveCardBuilder';
 import { logger } from '../utils/logger';
+import { encryptionService } from '../utils/encryption';
 
 export class BugRaiserBot extends ActivityHandler {
   private messageParser: MessageParser;
@@ -134,21 +135,35 @@ export class BugRaiserBot extends ActivityHandler {
         return;
       }
 
-      // Check if user is configured
+      // Check if user is configured and config is not expired
       const userConfig = await this.userConfigAccessor.get(context, { isConfigured: false });
-      if (!userConfig.isConfigured) {
+      const configValidation = this.validateUserConfig(userConfig);
+
+      if (!configValidation.isValid) {
         const conversationType = context.activity.conversation?.conversationType;
         const isPersonalChat = conversationType === 'personal';
 
-        const setupMessage = isPersonalChat
-          ? '⚠️ Please set up your Bug Basher configuration first.\n\n' +
-            'Type `setup` to configure your Personal Access Token and default paths.'
-          : '⚠️ Please set up your Bug Basher configuration first.\n\n' +
-            '🔒 For security, setup must be done in a private chat. Please:\n' +
-            '1. Open a direct message with me (Bug Basher)\n' +
-            '2. Type `setup`\n' +
-            '3. Configure your Personal Access Token and default paths\n\n' +
-            'Then return here to create bugs!';
+        let setupMessage: string;
+        if (configValidation.reason === 'expired') {
+          setupMessage = isPersonalChat
+            ? '⏰ Your Bug Basher configuration has expired (5 days).\n\n' +
+              'Type `setup` to renew your configuration.'
+            : '⏰ Your Bug Basher configuration has expired (5 days).\n\n' +
+              '🔒 For security, setup must be done in a private chat. Please:\n' +
+              '1. Open a direct message with me (Bug Basher)\n' +
+              '2. Type `setup` to renew your configuration\n\n' +
+              'Then return here to create bugs!';
+        } else {
+          setupMessage = isPersonalChat
+            ? '⚠️ Please set up your Bug Basher configuration first.\n\n' +
+              'Type `setup` to configure your Personal Access Token and default paths.'
+            : '⚠️ Please set up your Bug Basher configuration first.\n\n' +
+              '🔒 For security, setup must be done in a private chat. Please:\n' +
+              '1. Open a direct message with me (Bug Basher)\n' +
+              '2. Type `setup`\n' +
+              '3. Configure your Personal Access Token and default paths\n\n' +
+              'Then return here to create bugs!';
+        }
 
         await context.sendActivity(MessageFactory.text(setupMessage));
         return;
@@ -227,24 +242,47 @@ export class BugRaiserBot extends ActivityHandler {
           return;
         }
 
+        // Validate PAT is provided
+        if (!submittedData.pat || submittedData.pat.trim().length === 0) {
+          await context.sendActivity(
+            MessageFactory.text('❌ Personal Access Token is required. Please try again.')
+          );
+          return;
+        }
+
+        // Encrypt the PAT token before storing
+        const encryptedPat = encryptionService.encrypt(submittedData.pat);
+
+        // Set expiration to 5 days from now
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 5);
+
         const newConfig: UserConfig = {
-          pat: submittedData.pat,
+          pat: encryptedPat, // ✅ Store encrypted PAT
           areaPath: submittedData.areaPath,
           iterationPath: submittedData.iterationPath,
           isConfigured: true,
           configuredAt: new Date(),
+          expiresAt: expiresAt, // ✅ Config expires in 5 days
         };
 
         await this.userConfigAccessor.set(context, newConfig);
         await this.userState.saveChanges(context);
+
+        logger.info('User configuration saved (PAT encrypted)', {
+          userId: context.activity.from.id,
+          expiresAt: expiresAt.toISOString(),
+        });
 
         await context.sendActivity(
           MessageFactory.text(
             `✅ Configuration saved successfully!\n\n` +
             `Your settings:\n` +
             `- Area Path: ${newConfig.areaPath}\n` +
-            `- Iteration Path: ${newConfig.iterationPath}\n\n` +
-            `You can now use "@bug basher raise a bug" to create bugs!`
+            `- Iteration Path: ${newConfig.iterationPath}\n` +
+            `- Valid for: 5 days (expires ${expiresAt.toLocaleDateString()})\n\n` +
+            `🔒 Your PAT token is encrypted and stored securely.\n\n` +
+            `You can now use "raise a bug" to create bugs!`
           )
         );
         return;
@@ -257,6 +295,31 @@ export class BugRaiserBot extends ActivityHandler {
 
         // Get user's configuration
         const userConfig = await this.userConfigAccessor.get(context, { isConfigured: false });
+
+        // Validate config and decrypt PAT
+        const configValidation = this.validateUserConfig(userConfig);
+        if (!configValidation.isValid) {
+          await context.sendActivity(
+            MessageFactory.text(
+              '⏰ Your configuration has expired. Please run `setup` again to renew.'
+            )
+          );
+          return;
+        }
+
+        // Decrypt PAT token for use
+        let decryptedPat: string;
+        try {
+          decryptedPat = encryptionService.decrypt(userConfig.pat!);
+        } catch (error) {
+          logger.error('Failed to decrypt PAT token', error);
+          await context.sendActivity(
+            MessageFactory.text(
+              '❌ Error decrypting credentials. Please run `setup` again to reconfigure.'
+            )
+          );
+          return;
+        }
 
         // Extract submitted values
         const bugDetails = {
@@ -276,8 +339,8 @@ export class BugRaiserBot extends ActivityHandler {
           severity: bugDetails.severity,
         });
 
-        // Create bug in ADO using user's PAT
-        const { bugUrl, bugId } = await this.adoService.createBug(bugDetails, userConfig.pat);
+        // Create bug in ADO using decrypted PAT
+        const { bugUrl, bugId } = await this.adoService.createBug(bugDetails, decryptedPat);
 
         // Send confirmation card
         const confirmationCard = AdaptiveCardBuilder.buildConfirmationCard(
@@ -501,6 +564,37 @@ Let me know if you need any help!`;
         },
       };
     }
+  }
+
+  /**
+   * Validate user configuration - check if configured and not expired
+   */
+  private validateUserConfig(userConfig: UserConfig): { isValid: boolean; reason?: string } {
+    // Check if user has configured
+    if (!userConfig.isConfigured) {
+      return { isValid: false, reason: 'not_configured' };
+    }
+
+    // Check if PAT token exists
+    if (!userConfig.pat) {
+      return { isValid: false, reason: 'no_pat' };
+    }
+
+    // Check if config has expired (5 days)
+    if (userConfig.expiresAt) {
+      const now = new Date();
+      const expiresAt = new Date(userConfig.expiresAt);
+
+      if (now > expiresAt) {
+        logger.info('User configuration expired', {
+          expiresAt: expiresAt.toISOString(),
+          now: now.toISOString(),
+        });
+        return { isValid: false, reason: 'expired' };
+      }
+    }
+
+    return { isValid: true };
   }
 
   private extractBugContent(rawText: string): string {

@@ -70,9 +70,10 @@ export interface ConversationConfig {
 }
 
 export interface UserConfig {
-  pat?: string;
+  pat?: string; // Stored encrypted
   areaPath?: string;
   iterationPath?: string;
   isConfigured: boolean;
   configuredAt?: Date;
+  expiresAt?: Date; // Config expires after 5 days
 }
