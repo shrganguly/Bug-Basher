@@ -150,8 +150,8 @@ export class MessageParser {
   private detectBugCommand(
     text: string
   ): 'raise_bug' | 'create_bug' | 'report_bug' | 'setup' | undefined {
-    // Check for setup command first
-    if (/\b(setup|configure|config)\b/i.test(text)) {
+    // Check for setup command first (matches "setup", "set up", "configure", "config")
+    if (/\b(set\s*up|setup|configure|config)\b/i.test(text)) {
       return 'setup';
     }
 
