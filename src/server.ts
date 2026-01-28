@@ -49,7 +49,14 @@ const adapter = new CloudAdapter(botFrameworkAuthentication);
 
 // Error handler for bot framework
 adapter.onTurnError = async (context, error) => {
-  logger.error('Bot turn error', error);
+  logger.error('Bot turn error', {
+    errorType: error.name,
+    errorMessage: error.message,
+    statusCode: (error as any).statusCode,
+    stack: error.stack,
+  });
+
+  // Send user-friendly message
   await context.sendActivity('Sorry, something went wrong. Please try again later.');
 };
 
