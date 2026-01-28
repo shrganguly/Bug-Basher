@@ -146,7 +146,8 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
           { role: 'user', content: userPrompt },
         ],
         // Temperature removed - some Azure OpenAI models only support default (1)
-        max_completion_tokens: 1000,
+        // GPT-5 Mini is a reasoning model that uses tokens internally, needs more for output
+        max_completion_tokens: 3000,
         response_format: { type: 'json_object' },
       });
 
@@ -154,12 +155,27 @@ Return JSON with: title, description, reproSteps, expectedBehavior, actualBehavi
         hasChoices: !!response.choices,
         choicesLength: response.choices?.length,
         hasContent: !!response.choices?.[0]?.message?.content,
+        finishReason: response.choices?.[0]?.finish_reason,
+        promptTokens: response.usage?.prompt_tokens,
+        completionTokens: response.usage?.completion_tokens,
+        reasoningTokens: (response.usage as any)?.completion_tokens_details?.reasoning_tokens,
       });
 
       const content = response.choices[0]?.message?.content;
+      const finishReason = response.choices[0]?.finish_reason;
+
       if (!content) {
+        if (finishReason === 'length') {
+          logger.error('Azure OpenAI hit token limit - response truncated', {
+            maxTokens: 3000,
+            promptTokens: response.usage?.prompt_tokens,
+            completionTokens: response.usage?.completion_tokens,
+          });
+          throw new Error('AI response truncated due to token limit - prompt may be too long');
+        }
         logger.error('Empty response from Azure OpenAI', {
           response: JSON.stringify(response),
+          finishReason,
         });
         throw new Error('No response from Azure OpenAI');
       }
