@@ -101,17 +101,12 @@ export class BugRaiserBot extends ActivityHandler {
 
       // If no replied message, use the command message itself (remove the command part)
       if (!messageContext && activity.text) {
-        const cleanText = activity.text.replace(/<at>.*?<\/at>/g, '').trim();
-        // Remove everything up to and including the command pattern and any separator (-, :, |)
-        const commandPattern = /^.*?(raise|create|report|log)\s+a?\s*bug\s*[-:|\s]*/i;
-        messageContext = cleanText.replace(commandPattern, '').trim();
+        // Extract the actual bug content from the message
+        messageContext = this.extractBugContent(activity.text);
 
-        // Remove any remaining leading punctuation and whitespace
-        messageContext = messageContext.replace(/^[-:•*|\s]+/, '').trim();
-
-        logger.info('Cleaned message context', {
+        logger.info('Extracted bug content', {
           original: activity.text?.substring(0, 100),
-          cleaned: messageContext.substring(0, 100)
+          extracted: messageContext.substring(0, 100)
         });
 
         // Remove quoted message author line (Teams includes "Author Name\r\nMessage content")
@@ -506,5 +501,34 @@ Let me know if you need any help!`;
         },
       };
     }
+  }
+
+  private extractBugContent(rawText: string): string {
+    // Step 1: Remove @ mentions (XML tags from Teams)
+    let text = rawText.replace(/<at>.*?<\/at>/g, '').trim();
+
+    // Step 2: Find where the command ends
+    // Look for patterns like "raise a bug", "create a bug", etc.
+    const commandMatch = text.match(/(raise|create|report|log)\s+a?\s*bug/i);
+
+    if (commandMatch) {
+      // Get the position where the command ends
+      const commandEndIndex = commandMatch.index! + commandMatch[0].length;
+
+      // Extract everything after the command
+      text = text.substring(commandEndIndex).trim();
+    }
+
+    // Step 3: Remove any leading separators (-, :, |, etc.)
+    text = text.replace(/^[-:•*|\s]+/, '').trim();
+
+    // Step 4: If the text still has bot name or other prefix, try to extract after separator
+    // Pattern: "Something separator content" → extract "content"
+    const separatorMatch = text.match(/^[^-:|\n]*[-:|\n]\s*(.*)/);
+    if (separatorMatch && separatorMatch[1]) {
+      text = separatorMatch[1].trim();
+    }
+
+    return text;
   }
 }
