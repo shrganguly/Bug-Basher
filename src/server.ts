@@ -9,7 +9,6 @@ import {
   UserState,
   Storage,
 } from 'botbuilder';
-import { BlobsStorage } from 'botbuilder-azure-blobs';
 import { getConfig, validateConfig } from './utils/config';
 import { logger } from './utils/logger';
 import { BugRaiserBot } from './bot/bugRaiserBot';
@@ -61,22 +60,16 @@ adapter.onTurnError = async (context, error) => {
 };
 
 // Create storage and state management
-// Priority: Azure Blob Storage (if configured) → File Storage (default) → Memory Storage (fallback)
+// Using File Storage for persistence (FREE solution)
 let storage: Storage;
 
-const azureStorageConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
-const azureStorageContainerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'bot-state';
 const useFileStorage = process.env.USE_FILE_STORAGE !== 'false'; // Default to true
 
-if (azureStorageConnectionString) {
-  logger.info('✅ Using Azure Blob Storage for state persistence (production-ready)');
-  storage = new BlobsStorage(azureStorageConnectionString, azureStorageContainerName);
-} else if (useFileStorage) {
-  logger.info('✅ Using File Storage for state persistence (free, good for development/small production)');
-  logger.warn('⚠️  Note: On Render free tier, files may be lost on restart. Upgrade to Azure Blob Storage for guaranteed persistence.');
+if (useFileStorage) {
+  logger.info('✅ Using File Storage for state persistence');
   storage = new FileStorage();
 } else {
-  logger.warn('❌ Using MemoryStorage - State will be lost on every restart! Not recommended for production.');
+  logger.warn('❌ Using MemoryStorage - State will be lost on every restart!');
   storage = new MemoryStorage();
 }
 
