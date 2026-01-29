@@ -91,7 +91,21 @@ export class BugRaiserBot extends ActivityHandler {
       });
 
       if (!parseResult.isCommand) {
-        logger.info('Not a command, ignoring');
+        // Check if bot was mentioned but no command detected
+        const isBotMentioned = this.messageParser.isBotMentionedPublic(activity, this.botId);
+        if (isBotMentioned) {
+          logger.warn('Bot mentioned but no command detected', {
+            text: activity.text?.substring(0, 200),
+          });
+          await context.sendActivity(
+            '👋 Hi! I didn\'t recognize that as a command. Try:\n\n' +
+            '• `@Bug Basher raise a bug` - to create a bug from your message\n' +
+            '• `@Bug Basher setup` - to configure your settings (in 1:1 chat)\n\n' +
+            'Or reply to a message and mention me to create a bug from that message.'
+          );
+        } else {
+          logger.info('Not a command and bot not mentioned, ignoring');
+        }
         return;
       }
 

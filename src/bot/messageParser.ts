@@ -4,10 +4,10 @@ import { logger } from '../utils/logger';
 
 export class MessageParser {
   private readonly bugCommandPatterns = [
-    /raise\s+(a|the|this)?\s*bug/i,
-    /create\s+(a|the|this)?\s*bug/i,
-    /report\s+(a|the|this)?\s*bug/i,
-    /log\s+(a|the|this)?\s*bug/i,
+    /raise\s+a?\s*bug/i,
+    /create\s+a?\s*bug/i,
+    /report\s+a?\s*bug/i,
+    /log\s+a?\s*bug/i,
   ];
 
   public parseCommand(activity: Activity, botId: string): CommandParseResult {
@@ -86,6 +86,10 @@ export class MessageParser {
       logger.error('Failed to fetch replied message', error);
       return undefined;
     }
+  }
+
+  public isBotMentionedPublic(activity: Activity, botId: string): boolean {
+    return this.isBotMentioned(activity, botId);
   }
 
   private isBotMentioned(activity: Activity, botId: string): boolean {
