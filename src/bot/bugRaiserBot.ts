@@ -792,6 +792,13 @@ Let me know if you need any help!`;
     try {
       // Step 1: Extract images from the current activity
       const currentAttachments = context.activity.attachments;
+
+      logger.info('Checking for attachments in current message', {
+        hasAttachments: !!currentAttachments,
+        attachmentCount: currentAttachments?.length || 0,
+        attachmentTypes: currentAttachments?.map(a => a.contentType) || [],
+      });
+
       if (currentAttachments && currentAttachments.length > 0) {
         const currentImages = currentAttachments.filter(att =>
           att.contentType && imageTypes.includes(att.contentType.toLowerCase())
@@ -800,7 +807,13 @@ Let me know if you need any help!`;
         if (currentImages.length > 0) {
           logger.info('Found image attachments in current message', { count: currentImages.length });
           await this.downloadAndAddImages(currentImages, imageAttachments, context);
+        } else {
+          logger.info('No image attachments found in current message (found other types)', {
+            types: currentAttachments.map(a => a.contentType),
+          });
         }
+      } else {
+        logger.info('No attachments in current message');
       }
 
       // Step 2: Check if there's a replied message and extract images from it

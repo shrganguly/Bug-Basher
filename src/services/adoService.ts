@@ -46,8 +46,16 @@ export class ADOService {
 
       // Upload image attachments if present
       if (bugDetails.imageAttachments && bugDetails.imageAttachments.length > 0) {
-        logger.info('Uploading image attachments', { bugId, count: bugDetails.imageAttachments.length });
+        logger.info('Uploading image attachments to ADO', {
+          bugId,
+          count: bugDetails.imageAttachments.length,
+          imageNames: bugDetails.imageAttachments.map(img => img.name),
+          imageSizes: bugDetails.imageAttachments.map(img => img.content?.length || 0),
+        });
         await this.uploadAttachments(bugId, bugDetails.imageAttachments, userPat);
+        logger.info('All image attachments uploaded successfully', { bugId });
+      } else {
+        logger.info('No image attachments to upload', { bugId });
       }
 
       return { bugUrl, bugId };
@@ -83,6 +91,11 @@ export class ADOService {
         path: '/fields/Microsoft.VSTS.Common.Severity',
         value: this.mapSeverityToADO(bugDetails.severity),
       },
+      {
+        op: 'add',
+        path: '/fields/Microsoft.VSTS.TCM.ReproSteps',
+        value: this.buildHtmlReproSteps(bugDetails),
+      },
     ];
 
     // Add tags (combine user tags with auto-created tag)
@@ -113,15 +126,6 @@ export class ADOService {
       });
     }
 
-    // Add repro steps if available
-    if (bugDetails.reproSteps) {
-      patches.push({
-        op: 'add',
-        path: '/fields/Microsoft.VSTS.TCM.ReproSteps',
-        value: `<div>${this.escapeHtml(bugDetails.reproSteps)}</div>`,
-      });
-    }
-
     return patches;
   }
 
@@ -143,6 +147,36 @@ export class ADOService {
     if (bugDetails.reproSteps) {
       html += '<br/><h3>Reproduction Steps</h3>';
       html += `<p>${this.escapeHtml(bugDetails.reproSteps).replace(/\n/g, '<br/>')}</p>`;
+    }
+
+    html += '<br/><p><em>Created automatically by Teams Bug Raiser Bot</em></p></div>';
+
+    return html;
+  }
+
+  private buildHtmlReproSteps(bugDetails: BugDetails): string {
+    let html = '<div>';
+
+    // Add the main description
+    html += `<h3>Description</h3><p>${this.escapeHtml(bugDetails.description)}</p>`;
+
+    // Add reproduction steps if available
+    if (bugDetails.reproSteps) {
+      html += '<br/><h3>Steps to Reproduce</h3>';
+      html += `<p>${this.escapeHtml(bugDetails.reproSteps).replace(/\n/g, '<br/>')}</p>`;
+    }
+
+    // Add expected vs actual behavior
+    if (bugDetails.expectedBehavior || bugDetails.actualBehavior) {
+      html += '<br/>';
+
+      if (bugDetails.expectedBehavior) {
+        html += `<h3>Expected Behavior</h3><p>${this.escapeHtml(bugDetails.expectedBehavior)}</p>`;
+      }
+
+      if (bugDetails.actualBehavior) {
+        html += `<h3>Actual Behavior</h3><p>${this.escapeHtml(bugDetails.actualBehavior)}</p>`;
+      }
     }
 
     html += '<br/><p><em>Created automatically by Teams Bug Raiser Bot</em></p></div>';
