@@ -141,6 +141,69 @@ The bug title should be:
 - **Specific**: Include the feature/area affected
 - **Clear**: Anyone should understand the issue at a glance
 
+### CRITICAL: Prioritize Main Issue Over Metadata
+
+**When the message contains both a main issue description and supplementary metadata, ALWAYS extract the title from the main issue:**
+
+**Supplementary metadata to ignore for titles (but include in description):**
+- Session IDs: `(Session ID: xxx)`, `Session: xxx`, `SessionId: xxx`
+- Timestamps: `(2024-01-15)`, `at 3:45 PM`, `yesterday`
+- Reference numbers: `(Ref: #123)`, `Ticket: xxx`, `Case ID: xxx`
+- User IDs or email addresses in parentheses
+- Error codes in parentheses when there's a clear description before it
+
+**Example - User Message:**
+```
+Multiple irrelevant documents were shown for creating a NDA letter
+(Session ID: 769f5514-ddcf-45c3-9320-dd348da2c80a)
+```
+
+**WRONG Title Extraction:**
+❌ "Session ID incorrect"
+❌ "Session ID issue"
+❌ "Error with session 769f5514"
+
+**CORRECT Title Extraction:**
+✅ "Multiple irrelevant documents shown for NDA letter creation"
+✅ "Irrelevant documents displayed for NDA letter creation"
+
+**How to Handle:**
+- **Title:** Use the main problem statement: "Multiple irrelevant documents shown for NDA letter creation"
+- **Description:** Include the Session ID in the "Additional Details" section:
+  ```
+  Multiple irrelevant documents are being displayed when users attempt to create an NDA letter.
+
+  **Additional Details:**
+  - Session ID: 769f5514-ddcf-45c3-9320-dd348da2c80a
+  ```
+
+### Pattern Recognition for Main Issue vs Metadata
+
+**Main issue typically appears:**
+- At the beginning of the message (before parentheses)
+- As a complete sentence describing the problem
+- Without technical identifiers or codes
+
+**Metadata typically appears:**
+- In parentheses: `(Session ID: xxx)`
+- After a dash or colon at the end: `- Ref: xxx`
+- As technical codes/IDs: UUIDs, timestamps, reference numbers
+- After the main problem statement
+
+**More Examples:**
+
+1. **Message:** `Login fails on mobile devices (Error code: AUTH_500)`
+   - **Title:** "Login fails on mobile devices"
+   - **Description includes:** Error code: AUTH_500
+
+2. **Message:** `Dashboard not loading (Session: abc-123, User: john@example.com)`
+   - **Title:** "Dashboard not loading"
+   - **Description includes:** Session and user information
+
+3. **Message:** `Search returns no results when filtering by date (2024-01-15 deployment)`
+   - **Title:** "Search returns no results when filtering by date"
+   - **Description includes:** Issue started after 2024-01-15 deployment
+
 ### Title Patterns
 
 **Good Examples:**
@@ -566,6 +629,40 @@ Always return a JSON object with the following structure:
 - ✅ "currently" removed from title (not professional)
 - ✅ Title is professional and actionable: "Document generation forms not discoverable in UI"
 - ✅ Description expands on the brief user message with context
+
+### Example 5: Message with Session ID and Metadata (CRITICAL - Ignore Metadata in Title)
+
+**Input Message:**
+```
+Multiple irrelevant documents were shown for creating a NDA letter
+(Session ID: 769f5514-ddcf-45c3-9320-dd348da2c80a)
+```
+
+**What is the Main Issue:**
+- "Multiple irrelevant documents were shown for creating a NDA letter"
+
+**What is Metadata (include in description, NOT title):**
+- Session ID: 769f5514-ddcf-45c3-9320-dd348da2c80a
+
+**WRONG Approach:**
+❌ Focusing on Session ID: "Session ID incorrect"
+❌ Making metadata the title: "Session 769f5514 shows wrong documents"
+
+**CORRECT Output:**
+```json
+{
+  "title": "Multiple irrelevant documents shown for NDA letter creation",
+  "description": "When creating an NDA letter, multiple irrelevant documents are being displayed to the user instead of the appropriate NDA templates.\n\n**Context:**\nUsers attempting to create NDA letters are seeing documents that are not related to NDAs, making it difficult to find and select the correct template.\n\n**Impact:**\nUsers creating NDA letters must search through irrelevant documents to find the correct template, slowing down the document creation workflow.\n\n**Additional Details:**\n- Session ID: 769f5514-ddcf-45c3-9320-dd348da2c80a",
+  "severity": "Medium",
+  "tags": ["document-creation", "search"]
+}
+```
+
+**Key Points Demonstrated:**
+- ✅ Title extracted from main problem statement, NOT from Session ID
+- ✅ Session ID preserved in "Additional Details" section for debugging
+- ✅ Title is clear and describes the actual user problem
+- ✅ Metadata treated as supplementary context, not the primary issue
 
 ---
 
