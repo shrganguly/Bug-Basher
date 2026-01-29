@@ -24,14 +24,24 @@ export class ADOService {
     try {
       logger.info('Creating bug in Azure DevOps', { title: bugDetails.title });
 
-      const workItemUrl = `/wit/workitems/$Bug?api-version=7.0`;
+      // Step 1: Upload images FIRST to get their URLs (if any)
+      let imageUrls: { name: string; url: string }[] = [];
+      if (bugDetails.imageAttachments && bugDetails.imageAttachments.length > 0) {
+        logger.info('Pre-uploading image attachments to get URLs', {
+          count: bugDetails.imageAttachments.length,
+          imageNames: bugDetails.imageAttachments.map(img => img.name),
+        });
+        imageUrls = await this.uploadImagesAndGetUrls(bugDetails.imageAttachments, userPat);
+        logger.info('Images uploaded, URLs obtained', { count: imageUrls.length });
+      }
 
-      // Build JSON Patch document for creating work item
-      const patchDocument = this.buildPatchDocument(bugDetails);
+      // Step 2: Build JSON Patch document with embedded images
+      const patchDocument = this.buildPatchDocument(bugDetails, imageUrls);
 
       // Use user's PAT if provided, otherwise use default client
       const client = userPat ? this.createClientWithPAT(userPat) : this.client;
 
+      const workItemUrl = `/wit/workitems/$Bug?api-version=7.0`;
       const response = await client.post<ADOWorkItem>(
         workItemUrl,
         patchDocument
@@ -42,20 +52,13 @@ export class ADOService {
       const encodedProject = encodeURIComponent(this.config.project);
       const bugUrl = `https://dev.azure.com/${this.config.organization}/${encodedProject}/_workitems/edit/${bugId}`;
 
-      logger.info('Bug created successfully', { bugId, bugUrl });
+      logger.info('Bug created successfully with embedded images', { bugId, bugUrl, imageCount: imageUrls.length });
 
-      // Upload image attachments if present
-      if (bugDetails.imageAttachments && bugDetails.imageAttachments.length > 0) {
-        logger.info('Uploading image attachments to ADO', {
-          bugId,
-          count: bugDetails.imageAttachments.length,
-          imageNames: bugDetails.imageAttachments.map(img => img.name),
-          imageSizes: bugDetails.imageAttachments.map(img => img.content?.length || 0),
-        });
-        await this.uploadAttachments(bugId, bugDetails.imageAttachments, userPat);
-        logger.info('All image attachments uploaded successfully', { bugId });
-      } else {
-        logger.info('No image attachments to upload', { bugId });
+      // Step 3: Link the attachments to the work item (for the Attachments tab)
+      if (imageUrls.length > 0) {
+        logger.info('Linking attachments to work item', { bugId, count: imageUrls.length });
+        await this.linkAttachmentsToWorkItem(bugId, imageUrls, userPat);
+        logger.info('All attachments linked successfully', { bugId });
       }
 
       return { bugUrl, bugId };
@@ -74,7 +77,7 @@ export class ADOService {
     }
   }
 
-  private buildPatchDocument(bugDetails: BugDetails): any[] {
+  private buildPatchDocument(bugDetails: BugDetails, imageUrls: { name: string; url: string }[] = []): any[] {
     const patches = [
       {
         op: 'add',
@@ -84,7 +87,7 @@ export class ADOService {
       {
         op: 'add',
         path: '/fields/System.Description',
-        value: this.buildHtmlDescription(bugDetails),
+        value: this.buildHtmlDescription(bugDetails, imageUrls),
       },
       {
         op: 'add',
@@ -94,7 +97,7 @@ export class ADOService {
       {
         op: 'add',
         path: '/fields/Microsoft.VSTS.TCM.ReproSteps',
-        value: this.buildHtmlReproSteps(bugDetails),
+        value: this.buildHtmlReproSteps(bugDetails, imageUrls),
       },
     ];
 
@@ -129,7 +132,7 @@ export class ADOService {
     return patches;
   }
 
-  private buildHtmlDescription(bugDetails: BugDetails): string {
+  private buildHtmlDescription(bugDetails: BugDetails, imageUrls: { name: string; url: string }[] = []): string {
     let html = `<div><p>${this.escapeHtml(bugDetails.description)}</p>`;
 
     if (bugDetails.expectedBehavior || bugDetails.actualBehavior) {
@@ -149,12 +152,20 @@ export class ADOService {
       html += `<p>${this.escapeHtml(bugDetails.reproSteps).replace(/\n/g, '<br/>')}</p>`;
     }
 
+    // Add embedded images if present
+    if (imageUrls.length > 0) {
+      html += '<br/><h3>Screenshots</h3>';
+      for (const image of imageUrls) {
+        html += `<p><img src="${image.url}" alt="${this.escapeHtml(image.name)}" style="max-width: 100%; height: auto;" /></p>`;
+      }
+    }
+
     html += '<br/><p><em>Created automatically by Teams Bug Raiser Bot</em></p></div>';
 
     return html;
   }
 
-  private buildHtmlReproSteps(bugDetails: BugDetails): string {
+  private buildHtmlReproSteps(bugDetails: BugDetails, imageUrls: { name: string; url: string }[] = []): string {
     let html = '<div>';
 
     // Add the main description
@@ -176,6 +187,14 @@ export class ADOService {
 
       if (bugDetails.actualBehavior) {
         html += `<h3>Actual Behavior</h3><p>${this.escapeHtml(bugDetails.actualBehavior)}</p>`;
+      }
+    }
+
+    // Add embedded images if present - at the end so they show up in Repro Steps
+    if (imageUrls.length > 0) {
+      html += '<br/><h3>Screenshots</h3>';
+      for (const image of imageUrls) {
+        html += `<div style="margin: 10px 0;"><img src="${image.url}" alt="${this.escapeHtml(image.name)}" style="max-width: 800px; height: auto; border: 1px solid #ddd;" /></div>`;
       }
     }
 
@@ -282,13 +301,14 @@ export class ADOService {
   }
 
   /**
-   * Upload image attachments to Azure DevOps work item
+   * Upload images and get their URLs for embedding in HTML
    */
-  private async uploadAttachments(
-    workItemId: number,
+  private async uploadImagesAndGetUrls(
     attachments: ImageAttachment[],
     userPat?: string
-  ): Promise<void> {
+  ): Promise<{ name: string; url: string }[]> {
+    const imageUrls: { name: string; url: string }[] = [];
+
     for (const attachment of attachments) {
       try {
         if (!attachment.content) {
@@ -296,28 +316,46 @@ export class ADOService {
           continue;
         }
 
-        // Step 1: Upload the file to ADO attachments storage
-        const attachmentUrl = await this.uploadAttachmentFile(
-          attachment,
-          userPat
-        );
+        // Upload the file to ADO attachments storage
+        const attachmentUrl = await this.uploadAttachmentFile(attachment, userPat);
 
-        // Step 2: Link the attachment to the work item
-        await this.linkAttachmentToWorkItem(
-          workItemId,
-          attachmentUrl,
-          attachment.name,
-          userPat
-        );
+        imageUrls.push({
+          name: attachment.name,
+          url: attachmentUrl,
+        });
 
-        logger.info('Attachment uploaded and linked successfully', {
-          workItemId,
+        logger.info('Image uploaded and URL obtained', {
           fileName: attachment.name,
+          url: attachmentUrl,
         });
       } catch (error) {
-        logger.error('Failed to upload attachment', {
-          workItemId,
+        logger.error('Failed to upload image', {
           fileName: attachment.name,
+          error,
+        });
+        // Continue with other images even if one fails
+      }
+    }
+
+    return imageUrls;
+  }
+
+  /**
+   * Link uploaded attachments to work item (for Attachments tab)
+   */
+  private async linkAttachmentsToWorkItem(
+    workItemId: number,
+    imageUrls: { name: string; url: string }[],
+    userPat?: string
+  ): Promise<void> {
+    for (const image of imageUrls) {
+      try {
+        await this.linkAttachmentToWorkItem(workItemId, image.url, image.name, userPat);
+        logger.info('Attachment linked to work item', { workItemId, fileName: image.name });
+      } catch (error) {
+        logger.error('Failed to link attachment to work item', {
+          workItemId,
+          fileName: image.name,
           error,
         });
         // Continue with other attachments even if one fails
