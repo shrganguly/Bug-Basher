@@ -1,0 +1,39 @@
+name: Keep Render Awake
+
+on:
+  schedule:
+    # Ping every 10 minutes to prevent Render from sleeping
+    # Format: minute hour day month day-of-week
+    # */10 = every 10 minutes
+    - cron: '*/10 * * * *'
+
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping Bug Basher Health Endpoint
+        run: |
+          echo "🔔 Pinging Bug Basher server at $(date)"
+
+          # Ping the health endpoint
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://bug-basher.onrender.com/health)
+
+          echo "Response code: $response"
+
+          if [ $response -eq 200 ] || [ $response -eq 404 ]; then
+            echo "✅ Server is awake (HTTP $response)"
+            exit 0
+          else
+            echo "⚠️ Server returned unexpected response: $response"
+            echo "This might mean the server is waking up or having issues"
+            exit 0  # Don't fail the job - server might be cold starting
+          fi
+
+      - name: Log Status
+        if: always()
+        run: |
+          echo "Keep-awake ping completed at $(date)"
+          echo "Next ping in ~10 minutes"
