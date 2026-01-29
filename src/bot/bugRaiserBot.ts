@@ -1,11 +1,12 @@
 import { ActivityHandler, TurnContext, MessageFactory, StatePropertyAccessor, ConversationState, UserState } from 'botbuilder';
-import { AppConfig, ADOConfig, UserConfig } from '../types';
+import { AppConfig, ADOConfig, UserConfig, ImageAttachment } from '../types';
 import { MessageParser } from './messageParser';
 import { AIService } from '../services/aiService';
 import { ADOService } from '../services/adoService';
 import { AdaptiveCardBuilder } from './adaptiveCardBuilder';
 import { logger } from '../utils/logger';
 import { encryptionService } from '../utils/encryption';
+import axios from 'axios';
 
 export class BugRaiserBot extends ActivityHandler {
   private messageParser: MessageParser;
@@ -190,6 +191,17 @@ export class BugRaiserBot extends ActivityHandler {
       const bugDetails = await this.aiService.analyzeBugContext(messageContext);
 
       logger.info('Bug details extracted', { title: bugDetails.title });
+
+      // Step 1.5: Extract and download image attachments
+      const imageAttachments = await this.extractImageAttachments(context);
+      if (imageAttachments && imageAttachments.length > 0) {
+        bugDetails.imageAttachments = imageAttachments;
+        logger.info('Image attachments found', { count: imageAttachments.length });
+
+        // Add note about images to description
+        const imageNote = `\n\n**Attachments:**\n${imageAttachments.map(img => `- ${img.name}`).join('\n')}`;
+        bugDetails.description = bugDetails.description + imageNote;
+      }
 
       // Step 2: Use user's configured paths as defaults
       bugDetails.areaPath = bugDetails.areaPath || userConfig.areaPath || this.adoConfig.areaPath;
@@ -767,6 +779,159 @@ Let me know if you need any help!`;
         },
       };
     }
+  }
+
+  /**
+   * Extract and download image attachments from the context
+   * Also checks replied messages for images
+   */
+  private async extractImageAttachments(context: TurnContext): Promise<ImageAttachment[]> {
+    const imageAttachments: ImageAttachment[] = [];
+    const imageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/bmp'];
+
+    try {
+      // Step 1: Extract images from the current activity
+      const currentAttachments = context.activity.attachments;
+      if (currentAttachments && currentAttachments.length > 0) {
+        const currentImages = currentAttachments.filter(att =>
+          att.contentType && imageTypes.includes(att.contentType.toLowerCase())
+        );
+
+        if (currentImages.length > 0) {
+          logger.info('Found image attachments in current message', { count: currentImages.length });
+          await this.downloadAndAddImages(currentImages, imageAttachments, context);
+        }
+      }
+
+      // Step 2: Check if there's a replied message and extract images from it
+      const replyToId = context.activity.replyToId;
+      if (replyToId) {
+        logger.debug('Checking replied message for images', { replyToId });
+
+        try {
+          // Try to fetch the replied activity using the conversation API
+          const conversationId = context.activity.conversation.id;
+          const serviceUrl = context.activity.serviceUrl;
+
+          // Build the activity URL
+          const activityUrl = `${serviceUrl}/v3/conversations/${encodeURIComponent(conversationId)}/activities/${encodeURIComponent(replyToId)}`;
+
+          logger.debug('Fetching replied activity', { activityUrl });
+
+          // Note: This requires proper Bot Framework authentication
+          // The adapter handles authentication automatically
+          const repliedActivity = await (context.adapter as any).getActivity?.(context, replyToId);
+
+          if (repliedActivity?.attachments && repliedActivity.attachments.length > 0) {
+            const repliedImages = repliedActivity.attachments.filter((att: any) =>
+              att.contentType && imageTypes.includes(att.contentType.toLowerCase())
+            );
+
+            if (repliedImages.length > 0) {
+              logger.info('Found image attachments in replied message', { count: repliedImages.length });
+              await this.downloadAndAddImages(repliedImages, imageAttachments, context);
+            }
+          }
+        } catch (replyError) {
+          logger.warn('Could not fetch replied message for images', {
+            error: replyError instanceof Error ? replyError.message : 'Unknown error',
+            replyToId,
+          });
+          // Continue even if we can't fetch the replied message
+        }
+      }
+
+      if (imageAttachments.length === 0) {
+        logger.debug('No image attachments found in current or replied messages');
+      }
+
+      logger.info('Image extraction complete', { totalImages: imageAttachments.length });
+    } catch (error) {
+      logger.error('Error extracting image attachments', error);
+    }
+
+    return imageAttachments;
+  }
+
+  /**
+   * Download images and add them to the imageAttachments array
+   */
+  private async downloadAndAddImages(
+    images: any[],
+    imageAttachments: ImageAttachment[],
+    context: TurnContext
+  ): Promise<void> {
+    for (const attachment of images) {
+      try {
+        const imageData: ImageAttachment = {
+          name: attachment.name || `image_${Date.now()}_${Math.random().toString(36).substring(7)}.${this.getExtensionFromContentType(attachment.contentType!)}`,
+          contentUrl: attachment.contentUrl!,
+          contentType: attachment.contentType!,
+        };
+
+        // Download the image content
+        if (attachment.contentUrl) {
+          logger.debug('Downloading image', { url: attachment.contentUrl });
+
+          try {
+            // For Teams attachments, the contentUrl is typically accessible directly
+            // or through Bot Framework's attachment download
+            const response = await axios.get(attachment.contentUrl, {
+              responseType: 'arraybuffer',
+              timeout: 30000, // 30 second timeout
+            });
+
+            imageData.content = Buffer.from(response.data);
+            logger.info('Image downloaded successfully', { name: imageData.name, size: imageData.content.length });
+          } catch (downloadError) {
+            // If direct download fails, try with Bot Framework token
+            logger.warn('Direct download failed, attempting with Bot Framework auth', {
+              url: attachment.contentUrl,
+            });
+
+            // Get the token from the adapter
+            const token = await (context.adapter as any).getTokenAsync?.(context);
+
+            if (token) {
+              const response = await axios.get(attachment.contentUrl, {
+                responseType: 'arraybuffer',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+                timeout: 30000,
+              });
+
+              imageData.content = Buffer.from(response.data);
+              logger.info('Image downloaded with auth token', { name: imageData.name, size: imageData.content.length });
+            } else {
+              throw new Error('Unable to authenticate for image download');
+            }
+          }
+        }
+
+        imageAttachments.push(imageData);
+      } catch (downloadError) {
+        logger.error('Failed to download image attachment', {
+          error: downloadError,
+          contentUrl: attachment.contentUrl,
+        });
+        // Continue with other attachments even if one fails
+      }
+    }
+  }
+
+  /**
+   * Get file extension from content type
+   */
+  private getExtensionFromContentType(contentType: string): string {
+    const typeMap: { [key: string]: string } = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/gif': 'gif',
+      'image/bmp': 'bmp',
+    };
+    return typeMap[contentType.toLowerCase()] || 'png';
   }
 
   private extractBugContent(rawText: string): string {

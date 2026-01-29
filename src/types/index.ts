@@ -9,6 +9,14 @@ export interface BugDetails {
   originalMessage?: string;
   areaPath?: string;
   iterationPath?: string;
+  imageAttachments?: ImageAttachment[];
+}
+
+export interface ImageAttachment {
+  name: string;
+  contentUrl: string;
+  contentType: string;
+  content?: Buffer; // Downloaded image data
 }
 
 export interface ADOConfig {

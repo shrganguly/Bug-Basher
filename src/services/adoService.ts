@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { ADOConfig, BugDetails, ADOWorkItem } from '../types';
+import { ADOConfig, BugDetails, ADOWorkItem, ImageAttachment } from '../types';
 import { logger } from '../utils/logger';
 
 export class ADOService {
@@ -43,6 +43,13 @@ export class ADOService {
       const bugUrl = `https://dev.azure.com/${this.config.organization}/${encodedProject}/_workitems/edit/${bugId}`;
 
       logger.info('Bug created successfully', { bugId, bugUrl });
+
+      // Upload image attachments if present
+      if (bugDetails.imageAttachments && bugDetails.imageAttachments.length > 0) {
+        logger.info('Uploading image attachments', { bugId, count: bugDetails.imageAttachments.length });
+        await this.uploadAttachments(bugId, bugDetails.imageAttachments, userPat);
+      }
+
       return { bugUrl, bugId };
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -238,5 +245,126 @@ export class ADOService {
     };
 
     return text.replace(/[&<>"']/g, (char) => map[char]);
+  }
+
+  /**
+   * Upload image attachments to Azure DevOps work item
+   */
+  private async uploadAttachments(
+    workItemId: number,
+    attachments: ImageAttachment[],
+    userPat?: string
+  ): Promise<void> {
+    for (const attachment of attachments) {
+      try {
+        if (!attachment.content) {
+          logger.warn('Skipping attachment without content', { name: attachment.name });
+          continue;
+        }
+
+        // Step 1: Upload the file to ADO attachments storage
+        const attachmentUrl = await this.uploadAttachmentFile(
+          attachment,
+          userPat
+        );
+
+        // Step 2: Link the attachment to the work item
+        await this.linkAttachmentToWorkItem(
+          workItemId,
+          attachmentUrl,
+          attachment.name,
+          userPat
+        );
+
+        logger.info('Attachment uploaded and linked successfully', {
+          workItemId,
+          fileName: attachment.name,
+        });
+      } catch (error) {
+        logger.error('Failed to upload attachment', {
+          workItemId,
+          fileName: attachment.name,
+          error,
+        });
+        // Continue with other attachments even if one fails
+      }
+    }
+  }
+
+  /**
+   * Upload attachment file to Azure DevOps and get attachment reference URL
+   */
+  private async uploadAttachmentFile(
+    attachment: ImageAttachment,
+    userPat?: string
+  ): Promise<string> {
+    try {
+      const uploadUrl = `https://dev.azure.com/${this.config.organization}/${this.config.project}/_apis/wit/attachments?fileName=${encodeURIComponent(attachment.name)}&api-version=7.0`;
+
+      // Create client with appropriate auth
+      const auth = Buffer.from(`:${userPat || this.config.pat}`).toString('base64');
+      const uploadClient = axios.create({
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/octet-stream',
+        },
+      });
+
+      const response = await uploadClient.post(uploadUrl, attachment.content);
+
+      logger.info('Attachment file uploaded', {
+        fileName: attachment.name,
+        attachmentUrl: response.data.url,
+      });
+
+      return response.data.url;
+    } catch (error) {
+      logger.error('Failed to upload attachment file', {
+        fileName: attachment.name,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Link uploaded attachment to work item
+   */
+  private async linkAttachmentToWorkItem(
+    workItemId: number,
+    attachmentUrl: string,
+    fileName: string,
+    userPat?: string
+  ): Promise<void> {
+    try {
+      const patchDocument = [
+        {
+          op: 'add',
+          path: '/relations/-',
+          value: {
+            rel: 'AttachedFile',
+            url: attachmentUrl,
+            attributes: {
+              comment: `Uploaded from Teams: ${fileName}`,
+            },
+          },
+        },
+      ];
+
+      const client = userPat ? this.createClientWithPAT(userPat) : this.client;
+      await client.patch(
+        `/wit/workitems/${workItemId}?api-version=7.0`,
+        patchDocument
+      );
+
+      logger.info('Attachment linked to work item', { workItemId, fileName });
+    } catch (error) {
+      logger.error('Failed to link attachment to work item', {
+        workItemId,
+        fileName,
+        error,
+      });
+      throw error;
+    }
   }
 }
