@@ -1,10 +1,11 @@
-import { Attachment, CardFactory } from 'botbuilder';
+import { Attachment, CardFactory, ConversationReference } from 'botbuilder';
 import { BugDetails, ADOConfig, UserConfig } from '../types';
 
 export class AdaptiveCardBuilder {
   public static buildBugPreviewCard(
     bugDetails: BugDetails,
-    adoConfig: ADOConfig
+    adoConfig: ADOConfig,
+    conversationRef?: ConversationReference | null
   ): Attachment {
     const cardBody: any[] = [
       {
@@ -92,6 +93,7 @@ export class AdaptiveCardBuilder {
           style: 'positive',
           data: {
             action: 'createBug',
+            conversationRef: conversationRef ? JSON.stringify(conversationRef) : null,
           },
         },
         {

@@ -46,7 +46,19 @@ export class BugRaiserBot extends ActivityHandler {
       await this.handleMemberAdded(context);
       await next();
     });
+  }
 
+  // Override onInvokeActivity to handle adaptive card actions
+  protected async onInvokeActivity(context: TurnContext): Promise<any> {
+    if (context.activity.name === 'adaptiveCard/action') {
+      const action = context.activity.value?.action;
+      if (action?.verb === 'showPreview') {
+        return await this.handleShowPreviewInvoke(context);
+      }
+    }
+
+    // Call base implementation for other invokes
+    return await super.onInvokeActivity(context);
   }
 
   // Override handleTeamsMessagingExtensionSubmitAction to handle message actions
@@ -183,15 +195,60 @@ export class BugRaiserBot extends ActivityHandler {
       bugDetails.areaPath = bugDetails.areaPath || userConfig.areaPath || this.adoConfig.areaPath;
       bugDetails.iterationPath = bugDetails.iterationPath || userConfig.iterationPath || this.adoConfig.iterationPath;
 
-      // Step 3: Show preview card for user to review and edit
-      const previewCard = AdaptiveCardBuilder.buildBugPreviewCard(
-        bugDetails,
-        this.adoConfig
-      );
+      // Step 3: Store the bug details temporarily and send a "Review" button
+      const conversationType = context.activity.conversation?.conversationType;
+      const isGroupChat = conversationType !== 'personal';
 
-      await context.sendActivity(MessageFactory.attachment(previewCard));
+      // Store original conversation reference for posting success message later
+      const conversationRef = TurnContext.getConversationReference(context.activity);
 
-      logger.info('Bug preview card sent to user');
+      if (isGroupChat) {
+        // In group chat: send a button that will show preview card (visible only to caller)
+        const reviewCard = {
+          type: 'AdaptiveCard',
+          version: '1.4',
+          body: [
+            {
+              type: 'TextBlock',
+              text: '✅ Bug analyzed successfully!',
+              weight: 'bolder',
+              size: 'medium',
+            },
+            {
+              type: 'TextBlock',
+              text: 'Click the button below to review and submit the bug.',
+              wrap: true,
+            },
+          ],
+          actions: [
+            {
+              type: 'Action.Execute',
+              title: '👁️ Review Bug',
+              verb: 'showPreview',
+              data: {
+                bugDetails: JSON.stringify(bugDetails),
+                conversationRef: JSON.stringify(conversationRef),
+                requestedBy: context.activity.from.id, // Store who requested this bug
+              },
+            },
+          ],
+        };
+
+        await context.sendActivity(MessageFactory.attachment({
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          content: reviewCard,
+        }));
+
+        logger.info('Review button sent in group chat');
+      } else {
+        // Personal chat - send preview card directly
+        const previewCard = AdaptiveCardBuilder.buildBugPreviewCard(
+          bugDetails,
+          this.adoConfig
+        );
+        await context.sendActivity(MessageFactory.attachment(previewCard));
+        logger.info('Bug preview card sent to user in personal chat');
+      }
     } catch (error) {
       logger.error('Error handling message', error);
 
@@ -361,7 +418,33 @@ export class BugRaiserBot extends ActivityHandler {
           bugId
         );
 
-        await context.sendActivity(MessageFactory.attachment(confirmationCard));
+        // Check if this was from a group chat (has conversationRef)
+        const conversationRefData = submittedData.conversationRef;
+
+        if (conversationRefData) {
+          // Post success message to the original group chat (visible to all)
+          const originalConversationRef = JSON.parse(conversationRefData);
+
+          logger.info('Posting success message to original group chat', {
+            conversationId: originalConversationRef.conversation.id,
+          });
+
+          await context.adapter.continueConversationAsync(
+            this.botId,
+            originalConversationRef,
+            async (turnContext) => {
+              await turnContext.sendActivity(MessageFactory.attachment(confirmationCard));
+            }
+          );
+
+          // Also send a confirmation to the user in their current context
+          await context.sendActivity(
+            MessageFactory.text('✅ Bug created! The confirmation has been posted to the channel.')
+          );
+        } else {
+          // Personal chat - send confirmation directly
+          await context.sendActivity(MessageFactory.attachment(confirmationCard));
+        }
 
         logger.info('Bug created and confirmation sent', { bugId, bugUrl });
       }
@@ -607,6 +690,83 @@ Let me know if you need any help!`;
     }
 
     return { isValid: true };
+  }
+
+  /**
+   * Handle showPreview invoke - returns user-specific preview card
+   */
+  private async handleShowPreviewInvoke(context: TurnContext): Promise<any> {
+    try {
+      const actionData = context.activity.value?.action?.data;
+      const requestedBy = actionData.requestedBy;
+      const currentUserId = context.activity.from.id;
+
+      // Security check: only the person who requested can review
+      if (requestedBy !== currentUserId) {
+        logger.warn('Unauthorized preview attempt', {
+          requestedBy,
+          attemptedBy: currentUserId,
+        });
+
+        return {
+          status: 200,
+          body: {
+            statusCode: 200,
+            type: 'application/vnd.microsoft.card.adaptive',
+            value: {
+              type: 'AdaptiveCard',
+              version: '1.4',
+              body: [
+                {
+                  type: 'TextBlock',
+                  text: '🚫 Access Denied',
+                  weight: 'bolder',
+                  size: 'large',
+                  color: 'attention',
+                },
+                {
+                  type: 'TextBlock',
+                  text: 'Only the person who requested this bug can review it.',
+                  wrap: true,
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      const bugDetails = JSON.parse(actionData.bugDetails);
+      const conversationRef = JSON.parse(actionData.conversationRef);
+
+      logger.info('Showing preview card to authorized user', { userId: currentUserId });
+
+      // Build the preview card with the stored conversation reference
+      const previewCard = AdaptiveCardBuilder.buildBugPreviewCard(
+        bugDetails,
+        this.adoConfig,
+        conversationRef
+      );
+
+      // Return invoke response - card will only be visible to the user who clicked
+      return {
+        status: 200,
+        body: {
+          statusCode: 200,
+          type: 'application/vnd.microsoft.card.adaptive',
+          value: previewCard.content,
+        },
+      };
+    } catch (error) {
+      logger.error('Error showing preview card', error);
+      return {
+        status: 500,
+        body: {
+          statusCode: 500,
+          type: 'application/vnd.microsoft.error',
+          value: { message: 'Failed to show preview card' },
+        },
+      };
+    }
   }
 
   private extractBugContent(rawText: string): string {
